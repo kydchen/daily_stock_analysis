@@ -457,12 +457,41 @@ class MarketAnalyzer:
             return self._generate_template_review(overview, news)
     
     def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
-        """构建复盘报告 Prompt（全球均衡版）"""
+        """构建复盘报告 Prompt（全球均衡版）- 修复变量缺失问题"""
         
-        # ... (前面数据拼接的代码不用动：indices_text, hk_text, us_text 等) ...
-        # ... (直到 promptString 定义之前) ...
+        # 1. 准备 A股数据 (indices_text)
+        indices_text = ""
+        for idx in overview.indices:
+            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+            indices_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+            
+        # 2. 准备 港股数据 (hk_text) - 需确保 MarketOverview 已包含 hk_indices
+        hk_text = ""
+        if hasattr(overview, 'hk_indices'):
+            for idx in overview.hk_indices:
+                direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+                hk_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
 
-        # 🚀 替换整个 prompt 字符串为以下内容：
+        # 3. 准备 美股数据 (us_text) - 需确保 MarketOverview 已包含 us_indices
+        us_text = ""
+        if hasattr(overview, 'us_indices'):
+            for idx in overview.us_indices:
+                direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+                us_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+
+        # 4. 准备 新闻数据 (news_text)
+        news_text = ""
+        for i, n in enumerate(news[:6], 1):
+            # 兼容 SearchResult 对象和字典
+            if hasattr(n, 'title'):
+                title = n.title[:50] if n.title else ''
+                snippet = n.snippet[:100] if n.snippet else ''
+            else:
+                title = n.get('title', '')[:50]
+                snippet = n.get('snippet', '')[:100]
+            news_text += f"{i}. {title}\n   {snippet}\n"
+
+        # 5. 构建 Prompt (使用上面定义好的变量)
         prompt = f"""你是一位专业的【全球资产配置分析师】，请生成一份**侧重美股与全球联动**的市场复盘报告。
 
 【用户偏好】
