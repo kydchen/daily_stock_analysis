@@ -800,7 +800,11 @@ def run_full_analysis(
         pipeline = StockAnalysisPipeline(config=config, max_workers=args.workers)
         
         # 1. 运行个股分析 (使用默认的 pipeline.analyzer，即 Gemini 3.0)
-        results = pipeline.run(...)
+        results = pipeline.run(
+            stock_codes=stock_codes,
+            dry_run=args.dry_run,
+            send_notification=not args.no_notify
+        )
         
         # 2. 运行大盘复盘
         market_report = ""
