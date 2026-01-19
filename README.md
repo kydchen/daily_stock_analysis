@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 
-> 🤖 基于 AI 大模型的 A/H 股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/邮箱
+> 🤖 基于 AI 大模型的 **A股/港股/美股** 全球市场智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/邮箱
 
 ![运行效果演示](./sources/all_2026-01-13_221547.gif)
 
@@ -15,7 +15,7 @@
 ### 🎯 核心功能
 - **AI 决策仪表盘** - 一句话核心结论 + 精确买卖点位 + 检查清单
 - **多维度分析** - 技术面 + 筹码分布 + 舆情情报 + 实时行情
-- **大盘复盘** - 每日市场概览、板块涨跌、北向资金
+- **全球复盘** - A股/港股/美股联动分析、全球市场概览、板块涨跌
 - **多渠道推送** - 支持企业微信、飞书、Telegram、邮件（自动识别）
 - **零成本部署** - GitHub Actions 免费运行，无需服务器
 - **💰 白嫖 Gemini API** - Google AI Studio 提供免费额度，个人使用完全够用
@@ -82,7 +82,7 @@
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
+| `STOCK_LIST` | 自选股代码，支持 **A股**(`600519`)、**港股**(`hk00700`)、**美股**(`AAPL`,`TSLA`)，逗号分隔 | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 备用搜索 | 可选 |
@@ -98,7 +98,7 @@
 
 #### 5. 完成！
 
-默认每个工作日 **18:00（北京时间）** 自动执行
+默认 **工作日 12:00 / 18:00** 双次推送，**周末 12:00** 单次推送（北京时间）
 
 ### 方式二：本地运行 / Docker 部署
 
@@ -208,8 +208,9 @@ daily_stock_analysis/
 - [x] GitHub Actions
 - [x] 港股支持
 - [x] Web 管理界面 (简易版)
+- [x] 美股支持
 - [ ] 历史分析回测
-- [ ] 美股支持
+
 
 ## 🤝 贡献
 
