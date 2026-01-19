@@ -548,59 +548,65 @@ class MarketAnalyzer:
         return prompt
     
     def _generate_template_review(self, overview: MarketOverview, news: List) -> str:
-        """使用模板生成复盘报告（无大模型时的备选方案）"""
+        """使用模板生成复盘报告（升级版：包含全球市场）"""
         
-        # 判断市场走势
-        sh_index = next((idx for idx in overview.indices if idx.code == '000001'), None)
+        # 1. 判断 A股 市场走势
+        sh_index = next((idx for idx in overview.indices if '000001' in idx.code or '300001' in idx.code), None)
         if sh_index:
-            if sh_index.change_pct > 1:
-                market_mood = "强势上涨"
-            elif sh_index.change_pct > 0:
-                market_mood = "小幅上涨"
-            elif sh_index.change_pct > -1:
-                market_mood = "小幅下跌"
-            else:
-                market_mood = "明显下跌"
+            if sh_index.change_pct > 1: market_mood = "强势上涨"
+            elif sh_index.change_pct > 0: market_mood = "小幅上涨"
+            elif sh_index.change_pct > -1: market_mood = "小幅下跌"
+            else: market_mood = "明显下跌"
         else:
             market_mood = "震荡整理"
         
-        # 指数行情（简洁格式）
-        indices_text = ""
-        for idx in overview.indices[:4]:
-            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
-            indices_text += f"- **{idx.name}**: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+        # 2. 格式化各市场指数
+        def format_indices(indices):
+            text = ""
+            for idx in indices[:4]: # 只取前4个重要指数
+                direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+                text += f"- **{idx.name}**: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+            return text if text else "- 暂无数据\n"
+
+        a_share_text = format_indices(overview.indices)
+        hk_share_text = format_indices(overview.hk_indices) if hasattr(overview, 'hk_indices') else "- 暂无数据\n"
+        us_share_text = format_indices(overview.us_indices) if hasattr(overview, 'us_indices') else "- 暂无数据\n"
         
-        # 板块信息
-        top_text = "、".join([s['name'] for s in overview.top_sectors[:3]])
-        bottom_text = "、".join([s['name'] for s in overview.bottom_sectors[:3]])
+        # 3. 板块信息
+        top_text = "、".join([s['name'] for s in overview.top_sectors[:3]]) if overview.top_sectors else "无"
+        bottom_text = "、".join([s['name'] for s in overview.bottom_sectors[:3]]) if overview.bottom_sectors else "无"
         
-        report = f"""## 📊 {overview.date} 大盘复盘
+        # 4. 生成报告
+        report = f"""## 📊 {overview.date} 全球市场复盘 (系统模板)
 
 ### 一、市场总结
 今日A股市场整体呈现**{market_mood}**态势。
 
-### 二、主要指数
-{indices_text}
+### 二、全球核心指数
+**🇺🇸 美股市场**
+{us_share_text}
+**🇭🇰 港股市场**
+{hk_share_text}
+**🇨🇳 A股市场**
+{a_share_text}
 
-### 三、涨跌统计
+### 三、A股资金与情绪
 | 指标 | 数值 |
 |------|------|
 | 上涨家数 | {overview.up_count} |
 | 下跌家数 | {overview.down_count} |
 | 涨停 | {overview.limit_up_count} |
-| 跌停 | {overview.limit_down_count} |
-| 两市成交额 | {overview.total_amount:.0f}亿 |
-| 北向资金 | {overview.north_flow:+.2f}亿 |
+| 两市成交 | {overview.total_amount:.0f}亿 |
 
 ### 四、板块表现
 - **领涨**: {top_text}
 - **领跌**: {bottom_text}
 
 ### 五、风险提示
-市场有风险，投资需谨慎。以上数据仅供参考，不构成投资建议。
+*注：由于AI服务暂时不可用，本报告由系统模板自动生成，仅包含基础数据。*
 
 ---
-*复盘时间: {datetime.now().strftime('%H:%M')}*
+*生成时间: {datetime.now().strftime('%H:%M')}*
 """
         return report
     
