@@ -43,6 +43,7 @@ class Config:
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-3-flash-preview"  # 主模型
     gemini_model_fallback: str = "gemini-2.5-flash"  # 备选模型
+    gemini_model_market: str = "gemini-2.5-flash"  # 🆕 大盘复盘专用模型
     
     # Gemini API 请求配置（防止 429 限流）
     gemini_request_delay: float = 2.0  # 请求间隔（秒）
@@ -188,6 +189,7 @@ class Config:
             gemini_api_key=os.getenv('GEMINI_API_KEY'),
             gemini_model=os.getenv('GEMINI_MODEL', 'gemini-3-flash-preview'),
             gemini_model_fallback=os.getenv('GEMINI_MODEL_FALLBACK', 'gemini-2.5-flash'),
+            gemini_model_market=os.getenv('GEMINI_MODEL_MARKET', 'gemini-2.5-flash'), #大盘专用
             gemini_request_delay=float(os.getenv('GEMINI_REQUEST_DELAY', '2.0')),
             gemini_max_retries=int(os.getenv('GEMINI_MAX_RETRIES', '5')),
             gemini_retry_delay=float(os.getenv('GEMINI_RETRY_DELAY', '5.0')),
