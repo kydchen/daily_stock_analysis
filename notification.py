@@ -1586,7 +1586,7 @@ class NotificationService:
 
         return "\n".join(lines).strip()
 
-   def _convert_md_to_html(self, content: str) -> str:  #优化排版
+    def _convert_md_to_html(self, content: str) -> str:
         """
         将 Markdown 转换为带样式的 HTML（修复邮件排版间距过大问题）
         """
@@ -1599,7 +1599,6 @@ class NotificationService:
         )
         
         # 2. 定义紧凑型 CSS 样式
-        # 重点优化：h1-h4 的 margin，ul/li 的 padding，p 的 margin
         style = """
         <style>
             body {
