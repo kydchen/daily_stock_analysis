@@ -393,6 +393,7 @@ class GeminiAnalyzer:
         """
         config = get_config()
         self._api_key = api_key or config.gemini_api_key
+        self._target_model = model_name  # 🆕 保存指定模型
         self._model = None
         self._current_model_name = None  # 当前使用的模型名称
         self._using_fallback = False  # 是否正在使用备选模型
@@ -487,7 +488,10 @@ class GeminiAnalyzer:
             
             # 从配置获取模型名称
             config = get_config()
-            model_name = config.gemini_model
+            # model_name = config.gemini_model
+            # fallback_model = config.gemini_model_fallback
+            # 🆕 修改：优先使用初始化时指定的模型，否则用默认配置
+            model_name = self._target_model or config.gemini_model
             fallback_model = config.gemini_model_fallback
             
             # 不再使用 Google Search Grounding（已知有兼容性问题）
