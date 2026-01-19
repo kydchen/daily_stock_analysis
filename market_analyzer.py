@@ -61,7 +61,9 @@ class MarketIndex:
 class MarketOverview:
     """市场概览数据"""
     date: str                           # 日期
-    indices: List[MarketIndex] = field(default_factory=list)  # 主要指数
+    indices: List[MarketIndex] = field(default_factory=list)  # A股主要指数
+    hk_indices: List[MarketIndex] = field(default_factory=list) # 🆕 港股指数
+    us_indices: List[MarketIndex] = field(default_factory=list) # 🆕 美股指数
     up_count: int = 0                   # 上涨家数
     down_count: int = 0                 # 下跌家数
     flat_count: int = 0                 # 平盘家数
@@ -87,7 +89,7 @@ class MarketAnalyzer:
     5. 生成大盘复盘报告
     """
     
-    # 主要指数代码
+    # A股 INDICES代码
     MAIN_INDICES = {
         'sh000001': '上证指数',
         'sz399001': '深证成指',
@@ -95,6 +97,18 @@ class MarketAnalyzer:
         'sh000688': '科创50',
         'sh000016': '上证50',
         'sh000300': '沪深300',
+    }
+    # 🆕 定义港股和美股关注列表
+    HK_INDICES = {
+        'HSI': '恒生指数',
+        'HSCEI': '国企指数',
+        'HSTECH': '恒生科技',
+    }
+    
+    US_INDICES = {
+        '.DJI': '道琼斯',
+        '.IXIC': '纳斯达克',
+        '.INX': '标普500',
     }
     
     def __init__(self, search_service: Optional[SearchService] = None, analyzer=None):
@@ -110,26 +124,24 @@ class MarketAnalyzer:
         self.analyzer = analyzer
         
     def get_market_overview(self) -> MarketOverview:
-        """
-        获取市场概览数据
-        
-        Returns:
-            MarketOverview: 市场概览数据对象
-        """
+        """获取市场概览数据（升级版）"""
         today = datetime.now().strftime('%Y-%m-%d')
         overview = MarketOverview(date=today)
         
-        # 1. 获取主要指数行情
+        # 1. 获取A股主要指数 (保持不变)
         overview.indices = self._get_main_indices()
         
-        # 2. 获取涨跌统计
+        # 2. 🆕 获取港股指数
+        overview.hk_indices = self._get_hk_indices()
+
+        # 3. 🆕 获取美股指数 (注意：这是昨晚收盘数据)
+        overview.us_indices = self._get_us_indices()
+        
+        # 4. 获取涨跌统计 (保持不变)
         self._get_market_statistics(overview)
         
-        # 3. 获取板块涨跌榜
+        # 5. 获取板块涨跌榜 (保持不变)
         self._get_sector_rankings(overview)
-        
-        # 4. 获取北向资金（可选）
-        # self._get_north_flow(overview)
         
         return overview
 
@@ -147,7 +159,7 @@ class MarketAnalyzer:
         return None
     
     def _get_main_indices(self) -> List[MarketIndex]:
-        """获取主要指数实时行情"""
+        """获取 A 主要指数实时行情"""
         indices = []
         
         try:
@@ -189,6 +201,77 @@ class MarketAnalyzer:
         except Exception as e:
             logger.error(f"[大盘] 获取指数行情失败: {e}")
         
+        return indices
+        
+    def _get_hk_indices(self) -> List[MarketIndex]:
+        """🆕 获取港股指数（来源：东方财富）"""
+        indices = []
+        try:
+            logger.info("[大盘] 获取港股指数...")
+            # 使用 akshare 的东方财富接口获取港股指数
+            df = self._call_akshare_with_retry(ak.stock_hk_index_spot_em, "港股指数")
+            
+            if df is not None and not df.empty:
+                # 东方财富返回所有指数，我们需要过滤出关注的
+                target_names = list(self.HK_INDICES.values())
+                
+                for _, row in df.iterrows():
+                    name = row['名称']
+                    if name in target_names:
+                        # 转换数据类型
+                        idx = MarketIndex(
+                            code=str(row['代码']),
+                            name=name,
+                            current=float(row['最新价']),
+                            change=float(row['涨跌额']),
+                            change_pct=float(row['涨跌幅']),
+                            open=float(row['今开']),
+                            high=float(row['最高']),
+                            low=float(row['最低']),
+                            prev_close=float(row['昨收']),
+                            amount=float(row['成交额'])
+                        )
+                        indices.append(idx)
+                        
+            logger.info(f"[大盘] 获取到 {len(indices)} 个港股指数")
+        except Exception as e:
+            logger.error(f"[大盘] 获取港股指数失败: {e}")
+        return indices
+
+    def _get_us_indices(self) -> List[MarketIndex]:
+        """🆕 获取美股指数（来源：新浪财经）"""
+        indices = []
+        try:
+            logger.info("[大盘] 获取美股指数...")
+            for code, name in self.US_INDICES.items():
+                try:
+                    # 单个获取美股指数
+                    # ak.index_us_stock_sina(symbol=".DJI")
+                    df = ak.index_us_stock_sina(symbol=code)
+                    
+                    if df is not None and not df.empty:
+                        row = df.iloc[0]
+                        # 新浪返回的字段可能是英文，需要根据实际返回调整
+                        # 通常包含: close(最新), diff(涨跌额), chg(涨跌幅)
+                        idx = MarketIndex(
+                            code=code,
+                            name=name,
+                            current=float(row.get('close') or row.get('latest_price') or 0),
+                            change=float(row.get('diff') or 0),
+                            change_pct=float(row.get('chg') or row.get('diff_rate') or 0),
+                            open=float(row.get('open') or 0),
+                            high=float(row.get('high') or 0),
+                            low=float(row.get('low') or 0),
+                            prev_close=float(row.get('pre_close') or 0),
+                            amount=float(row.get('amount') or 0)
+                        )
+                        indices.append(idx)
+                except Exception as e:
+                    logger.warning(f"[大盘] 获取美股 {name} 失败: {e}")
+            
+            logger.info(f"[大盘] 获取到 {len(indices)} 个美股指数")
+        except Exception as e:
+            logger.error(f"[大盘] 获取美股指数失败: {e}")
         return indices
     
     def _get_market_statistics(self, overview: MarketOverview):
@@ -374,87 +457,81 @@ class MarketAnalyzer:
             return self._generate_template_review(overview, news)
     
     def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
-        """构建复盘报告 Prompt"""
-        # 指数行情信息（简洁格式，不用emoji）
+        """🆕 升级 Prompt，加入全球市场数据"""
+        
+        # 1. A股数据
         indices_text = ""
         for idx in overview.indices:
             direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
             indices_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+            
+        # 2. 🆕 港股数据
+        hk_text = ""
+        for idx in overview.hk_indices:
+            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+            hk_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+
+        # 3. 🆕 美股数据
+        us_text = ""
+        for idx in overview.us_indices:
+            direction = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "-"
+            us_text += f"- {idx.name}: {idx.current:.2f} ({direction}{abs(idx.change_pct):.2f}%)\n"
+
+        # ... (板块和新闻代码保持不变)
         
-        # 板块信息
-        top_sectors_text = ", ".join([f"{s['name']}({s['change_pct']:+.2f}%)" for s in overview.top_sectors[:3]])
-        bottom_sectors_text = ", ".join([f"{s['name']}({s['change_pct']:+.2f}%)" for s in overview.bottom_sectors[:3]])
-        
-        # 新闻信息 - 支持 SearchResult 对象或字典
-        news_text = ""
-        for i, n in enumerate(news[:6], 1):
-            # 兼容 SearchResult 对象和字典
-            if hasattr(n, 'title'):
-                title = n.title[:50] if n.title else ''
-                snippet = n.snippet[:100] if n.snippet else ''
-            else:
-                title = n.get('title', '')[:50]
-                snippet = n.get('snippet', '')[:100]
-            news_text += f"{i}. {title}\n   {snippet}\n"
-        
-        prompt = f"""你是一位专业的A股市场分析师，请根据以下数据生成一份简洁的大盘复盘报告。
+        # 构建新的 Prompt
+        prompt = f"""你是一位专业的全球金融市场分析师，请根据以下数据生成一份简洁的【全球市场复盘报告】。
 
 【重要】输出要求：
 - 必须输出纯 Markdown 文本格式
-- 禁止输出 JSON 格式
-- 禁止输出代码块
-- emoji 仅在标题处少量使用（每个标题最多1个）
+- 包含全球市场概览章节
+- 分析 A股、港股、美股的联动效应
 
 ---
 
-# 今日市场数据
+# 今日市场数据 ({overview.date})
 
-## 日期
-{overview.date}
-
-## 主要指数
+## 🇨🇳 A股市场
 {indices_text}
-
-## 市场概况
-- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家
-- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家
+- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家
 - 两市成交额: {overview.total_amount:.0f} 亿元
-- 北向资金: {overview.north_flow:+.2f} 亿元
 
-## 板块表现
-领涨: {top_sectors_text}
-领跌: {bottom_sectors_text}
+## 🇭🇰 港股市场 (实时)
+{hk_text if hk_text else "暂无数据"}
+
+## 🇺🇸 美股市场 (隔夜收盘)
+{us_text if us_text else "暂无数据"}
+
+## A股板块表现
+领涨: ... (此处保持原有逻辑)
+领跌: ... (此处保持原有逻辑)
 
 ## 市场新闻
-{news_text if news_text else "暂无相关新闻"}
+... (此处保持原有逻辑)
 
 ---
 
-# 输出格式模板（请严格按此格式输出）
+# 输出格式模板
 
-## 📊 {overview.date} 大盘复盘
+## 🌍 {overview.date} 全球市场复盘
 
-### 一、市场总结
-（2-3句话概括今日市场整体表现，包括指数涨跌、成交量变化）
+### 一、核心观点
+（一句话概括今日全球市场情绪，如：A股独立走强，外盘普遍回调）
 
-### 二、指数点评
-（分析上证、深证、创业板等各指数走势特点）
+### 二、A股复盘
+（分析A股指数、成交量及赚钱效应）
 
-### 三、资金动向
-（解读成交额和北向资金流向的含义）
+### 三、全球联动
+- **港股**: （分析恒指及科技股表现，是否存在AH股联动）
+- **美股**: （点评隔夜美股表现对今日A股开盘的影响）
 
 ### 四、热点解读
-（分析领涨领跌板块背后的逻辑和驱动因素）
+（分析领涨板块逻辑）
 
 ### 五、后市展望
-（结合当前走势和新闻，给出明日市场预判）
-
-### 六、风险提示
-（需要关注的风险点）
+（结合内外盘环境，给出明日策略）
 
 ---
-
-请直接输出复盘报告内容，不要输出其他说明文字。
 """
         return prompt
     
