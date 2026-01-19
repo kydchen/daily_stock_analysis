@@ -238,7 +238,7 @@ class NotificationService:
         
         # 标题
         report_lines = [
-            f"# 📅 {report_date} A股自选股智能分析报告",
+            f"# 📅 {report_date} 全球市场智能分析报告",
             "",
             f"> 共分析 **{len(results)}** 只股票 | 报告生成时间：{datetime.now().strftime('%H:%M:%S')}",
             "",
@@ -864,7 +864,7 @@ class NotificationService:
         avg_score = sum(r.sentiment_score for r in results) / len(results) if results else 0
         
         lines = [
-            f"## 📅 {report_date} A股分析报告",
+            f"## 📅 {report_date} 全球市场分析报告",
             "",
             f"> 共 **{len(results)}** 只 | 🟢买入:{buy_count} 🟡持有:{hold_count} 🔴卖出:{sell_count} | 均分:{avg_score:.0f}",
             "",
@@ -1490,7 +1490,7 @@ class NotificationService:
                 "header": {
                     "title": {
                         "tag": "plain_text",
-                        "content": "A股智能分析报告"
+                        "content": "全球市场智能分析报告"
                     }
                 },
                 "elements": [
@@ -1609,7 +1609,7 @@ class NotificationService:
             # 生成主题
             if subject is None:
                 date_str = datetime.now().strftime('%Y-%m-%d')
-                subject = f"📈 A股智能分析报告 - {date_str}"
+                subject = f"📈 全球市场智能分析报告 - {date_str}"
             
             # 将 Markdown 转换为简单 HTML
             html_content = self._markdown_to_html(content)
