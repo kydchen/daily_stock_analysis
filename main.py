@@ -797,28 +797,28 @@ def run_full_analysis(
             config.single_stock_notify = True
         
         # 创建调度器
-        pipeline = StockAnalysisPipeline(
-            config=config,
-            max_workers=args.workers
-        )
+        pipeline = StockAnalysisPipeline(config=config, max_workers=args.workers)
         
-        # 1. 运行个股分析
-        results = pipeline.run(
-            stock_codes=stock_codes,
-            dry_run=args.dry_run,
-            send_notification=not args.no_notify
-        )
+        # 1. 运行个股分析 (使用默认的 pipeline.analyzer，即 Gemini 3.0)
+        results = pipeline.run(...)
         
-        # 2. 运行大盘复盘（如果启用且不是仅个股模式）
+        # 2. 运行大盘复盘
         market_report = ""
         if config.market_review_enabled and not args.no_market_review:
-            # 只调用一次，并获取结果
+            logger.info(f"正在初始化大盘分析专用模型: {config.gemini_model_market}")
+            
+            # 🆕 关键修改：实例化一个专门用于大盘的分析器
+            market_analyzer_instance = GeminiAnalyzer(
+                model_name=config.gemini_model_market
+            )
+            
+            # 将这个专用分析器传入 run_market_review
             review_result = run_market_review(
                 notifier=pipeline.notifier,
-                analyzer=pipeline.analyzer,
+                analyzer=market_analyzer_instance,  # <--- 使用专用模型
                 search_service=pipeline.search_service
             )
-            # 如果有结果，赋值给 market_report 用于后续飞书文档生成
+            
             if review_result:
                 market_report = review_result
         
