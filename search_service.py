@@ -588,32 +588,43 @@ class SearchService:
         focus_keywords: Optional[List[str]] = None
     ) -> SearchResponse:
         """
-        搜索股票相关新闻
-        
-        Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            max_results: 最大返回结果数
-            focus_keywords: 重点关注的关键词列表
-            
-        Returns:
-            SearchResponse 对象
+        搜索股票相关新闻（已针对美股优化英文搜索）
         """
+        # 判断是否为美股 (纯字母 或 以us开头)
+        is_us_stock = stock_code.isalpha() or stock_code.lower().startswith('us')
+
         # 默认重点关注关键词（基于交易理念）
         if focus_keywords is None:
-            focus_keywords = [
-                "年报预告", "业绩预告", "业绩快报",  # 业绩相关
-                "减持", "增持", "回购",              # 股东动向
-                "机构调研", "机构评级",              # 机构动向
-                "利好", "利空",                      # 消息面
-                "合同", "订单", "中标",              # 业务进展
-            ]
+            if is_us_stock:
+                # 美股：使用英文关键词
+                focus_keywords = [
+                    "earnings", "revenue", "guidance",          # 业绩
+                    "insider trading", "selling", "buying",     # 股东
+                    "analyst rating", "upgrade", "downgrade",   # 机构
+                    "bullish", "bearish", "price target",       # 消息面
+                    "lawsuit", "investigation", "partnership"   # 风险/业务
+                ]
+            else:
+                # A股/港股：使用中文关键词
+                focus_keywords = [
+                    "年报预告", "业绩预告", "业绩快报",  # 业绩相关
+                    "减持", "增持", "回购",              # 股东动向
+                    "机构调研", "机构评级",              # 机构动向
+                    "利好", "利空",                      # 消息面
+                    "合同", "订单", "中标",              # 业务进展
+                ]
         
         # 构建搜索查询（优化搜索效果）
-        # 主查询：股票名称 + 核心关键词
-        query = f"{stock_name} {stock_code} 股票 最新消息"
+        if is_us_stock:
+            # 美股：使用英文搜索，去除"股票"等中文词，提高 Tavily 命中率
+            clean_name = stock_name.replace('股票', '')
+            # 构造如: "Microsoft MSFT stock news latest analysis"
+            query = f"{clean_name} {stock_code} stock news latest analysis"
+        else:
+            # A股/港股：保持中文搜索
+            query = f"{stock_name} {stock_code} 股票 最新消息"
         
-        logger.info(f"搜索股票新闻: {stock_name}({stock_code})")
+        logger.info(f"搜索股票新闻: {stock_name}({stock_code}) | 关键词: {query}")
         
         # 依次尝试各个搜索引擎
         for provider in self._providers:
@@ -690,42 +701,54 @@ class SearchService:
         max_searches: int = 3
     ) -> Dict[str, SearchResponse]:
         """
-        多维度情报搜索（同时使用多个引擎、多个维度）
-        
-        搜索维度：
-        1. 最新消息 - 近期新闻动态
-        2. 风险排查 - 减持、处罚、利空
-        3. 业绩预期 - 年报预告、业绩快报
-        
-        Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            max_searches: 最大搜索次数
-            
-        Returns:
-            {维度名称: SearchResponse} 字典
+        多维度情报搜索（自动适配 A股/美股 搜索语种）
         """
         results = {}
         search_count = 0
         
-        # 定义搜索维度
-        search_dimensions = [
-            {
-                'name': 'latest_news',
-                'query': f"{stock_name} {stock_code} 最新 新闻 2026年1月",
-                'desc': '最新消息'
-            },
-            {
-                'name': 'risk_check', 
-                'query': f"{stock_name} 减持 处罚 利空 风险",
-                'desc': '风险排查'
-            },
-            {
-                'name': 'earnings',
-                'query': f"{stock_name} 年报预告 业绩预告 业绩快报 2025年报",
-                'desc': '业绩预期'
-            },
-        ]
+        # 判断是否为美股
+        is_us_stock = stock_code.isalpha() or stock_code.lower().startswith('us')
+        
+        # 动态定义搜索维度
+        if is_us_stock:
+            # 美股：英文维度
+            clean_name = stock_name.replace('股票', '')
+            search_dimensions = [
+                {
+                    'name': 'latest_news',
+                    'query': f"{clean_name} {stock_code} latest stock news analysis 2026",
+                    'desc': '最新消息(英)'
+                },
+                {
+                    'name': 'risk_check', 
+                    'query': f"{clean_name} {stock_code} stock risk insider selling lawsuit downside",
+                    'desc': '风险排查(英)'
+                },
+                {
+                    'name': 'earnings',
+                    'query': f"{clean_name} {stock_code} earnings report forecast guidance 2025",
+                    'desc': '业绩预期(英)'
+                },
+            ]
+        else:
+            # A股/港股：中文维度
+            search_dimensions = [
+                {
+                    'name': 'latest_news',
+                    'query': f"{stock_name} {stock_code} 最新 新闻 2026年1月",
+                    'desc': '最新消息'
+                },
+                {
+                    'name': 'risk_check', 
+                    'query': f"{stock_name} 减持 处罚 利空 风险",
+                    'desc': '风险排查'
+                },
+                {
+                    'name': 'earnings',
+                    'query': f"{stock_name} 年报预告 业绩预告 业绩快报 2025年报",
+                    'desc': '业绩预期'
+                },
+            ]
         
         logger.info(f"开始多维度情报搜索: {stock_name}({stock_code})")
         
@@ -744,7 +767,7 @@ class SearchService:
             provider = available_providers[provider_index % len(available_providers)]
             provider_index += 1
             
-            logger.info(f"[情报搜索] {dim['desc']}: 使用 {provider.name}")
+            logger.info(f"[情报搜索] {dim['desc']}: 使用 {provider.name} | Query: {dim['query']}")
             
             response = provider.search(dim['query'], max_results=3)
             results[dim['name']] = response
