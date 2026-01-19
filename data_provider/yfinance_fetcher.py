@@ -12,6 +12,7 @@ YfinanceFetcher - 兜底数据源 (Priority 4)
 1. 自动将 A 股代码转换为 yfinance 格式（.SS / .SZ）
 2. 处理 Yahoo Finance 的数据格式差异
 3. 失败后指数退避重试
+4. 修复 yfinance 新版多级索引导致的兼容性问题
 """
 
 import logging
@@ -19,6 +20,7 @@ from datetime import datetime
 from typing import Optional
 
 import pandas as pd
+import yfinance as yf
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -27,6 +29,7 @@ from tenacity import (
     before_sleep_log,
 )
 
+# 确保引用的是你的 base.py 中定义的类
 from .base import BaseFetcher, DataFetchError, STANDARD_COLUMNS
 
 logger = logging.getLogger(__name__)
@@ -36,199 +39,125 @@ class YfinanceFetcher(BaseFetcher):
     """
     Yahoo Finance 数据源实现
     
-    优先级：4（最低，作为兜底）
-    数据来源：Yahoo Finance
-    
-    关键策略：
-    - 自动转换股票代码格式
-    - 处理时区和数据格式差异
-    - 失败后指数退避重试
-    
-    注意事项：
-    - A 股数据可能有延迟
-    - 某些股票可能无数据
-    - 数据精度可能与国内源略有差异
+    优先级：4（最低，作为兜底，或用于美股/加密货币）
     """
     
     name = "YfinanceFetcher"
     priority = 4
     
-    def __init__(self):
-        """初始化 YfinanceFetcher"""
-        pass
-        
     def _convert_stock_code(self, stock_code: str) -> str:
         """
         转换股票代码为 Yahoo Finance 格式
-        支持 A股、港股(hk)、美股(us 或 纯字母)
+        支持 A股、港股(hk)、美股(us 或 纯字母)、加密货币(BTC-USD)
         """
         code = stock_code.strip()
         
-        # 1. 处理美股：如果是以 us 开头 (如 usAAPL) 或 纯字母 (如 NVDA)
+        # 1. 处理美股：如果是以 us 开头 (如 usAAPL)
         if code.lower().startswith('us'):
-            return code[2:].upper()  # 去掉 us 前缀，返回 AAPL
+            return code[2:].upper()
         
-        # 纯字母代码通常是美股 (如 AAPL, TSLA, NVDA)
+        # 2. 纯字母(美股) 或 带横杠(加密货币，如 BTC-USD)
         # 注意：A股代码都是数字，港股代码是数字(hk前缀在外部处理了)
-        if code.isalpha():
+        if code.isalpha() or '-' in code:
             return code.upper()
 
-        # 2. 已经包含后缀的情况 (A股/港股)
+        # 3. 已经包含后缀的情况 (A股/港股)
         if '.SS' in code.upper() or '.SZ' in code.upper() or '.HK' in code.upper():
             return code.upper()
         
-        # 3. 港股处理 (兼容 hk00700 格式)
+        # 4. 港股处理 (兼容 hk00700 格式)
         if code.lower().startswith('hk'):
             clean_code = code[2:]
             # 移除可能的前导0，Yahoo 港股通常是 0700.HK
             return f"{int(clean_code):04d}.HK"
         
-        # 4. A 股逻辑 (保持不变)
+        # 5. A 股逻辑
         code = code.replace('.SH', '').replace('.sh', '')
         if code.startswith(('600', '601', '603', '688')):
             return f"{code}.SS"
         elif code.startswith(('000', '002', '300')):
             return f"{code}.SZ"
         
-        # 5. 无法识别的情况
-        logger.warning(f"无法确定股票 {code} 的市场，尝试直接请求")
-        return code  # 改为直接返回原代码，而不是强加 .SZ
-        
-    # def _convert_stock_code(self, stock_code: str) -> str:
-    #     """
-    #     转换股票代码为 Yahoo Finance 格式
-        
-    #     Yahoo Finance A 股代码格式：
-    #     - 沪市：600519.SS (Shanghai Stock Exchange)
-    #     - 深市：000001.SZ (Shenzhen Stock Exchange)
-        
-    #     Args:
-    #         stock_code: 原始代码，如 '600519', '000001'
-            
-    #     Returns:
-    #         Yahoo Finance 格式代码，如 '600519.SS', '000001.SZ'
-    #     """
-    #     code = stock_code.strip()
-        
-    #     # 已经包含后缀的情况
-    #     if '.SS' in code.upper() or '.SZ' in code.upper():
-    #         return code.upper()
-        
-    #     # 去除可能的后缀
-    #     code = code.replace('.SH', '').replace('.sh', '')
-        
-    #     # 根据代码前缀判断市场
-    #     if code.startswith(('600', '601', '603', '688')):
-    #         return f"{code}.SS"
-    #     elif code.startswith(('000', '002', '300')):
-    #         return f"{code}.SZ"
-    #     else:
-    #         logger.warning(f"无法确定股票 {code} 的市场，默认使用深市")
-    #         return f"{code}.SZ"
+        # 6. 无法识别的情况，直接返回原代码尝试
+        return code
     
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=30),
-        retry=retry_if_exception_type((ConnectionError, TimeoutError)),
+        retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)), # 捕获常规异常以便重试
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     def _fetch_raw_data(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """
         从 Yahoo Finance 获取原始数据
-        
-        使用 yfinance.download() 获取历史数据
-        
-        流程：
-        1. 转换股票代码格式
-        2. 调用 yfinance API
-        3. 处理返回数据
         """
-        import yfinance as yf
-        
         # 转换代码格式
         yf_code = self._convert_stock_code(stock_code)
         
-        logger.debug(f"调用 yfinance.download({yf_code}, {start_date}, {end_date})")
+        logger.debug(f"[{self.name}] 调用 yfinance.download({yf_code}, {start_date}, {end_date})")
         
         try:
             # 使用 yfinance 下载数据
+            # 🛠️ 关键修复：multi_level_index=False
             df = yf.download(
                 tickers=yf_code,
                 start=start_date,
                 end=end_date,
-                progress=False,  # 禁止进度条
-                auto_adjust=True,  # 自动调整价格（复权）
+                progress=False,       # 禁止进度条
+                auto_adjust=True,     # 自动调整价格（复权）
+                multi_level_index=False # 🔴 必须加这个，否则新版 yfinance 会报错 "arg must be a list"
             )
             
-            if df.empty:
-                raise DataFetchError(f"Yahoo Finance 未查询到 {stock_code} 的数据")
+            if df is None or df.empty:
+                raise DataFetchError(f"Yahoo Finance 未查询到 {stock_code} ({yf_code}) 的数据")
             
             return df
             
         except Exception as e:
+            # 如果已经是 DataFetchError，直接抛出
             if isinstance(e, DataFetchError):
                 raise
-            raise DataFetchError(f"Yahoo Finance 获取数据失败: {e}") from e
+            # 包装其他异常
+            raise DataFetchError(f"Yahoo Finance 获取 {yf_code} 失败: {e}") from e
     
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
         标准化 Yahoo Finance 数据
-        
-        yfinance 返回的列名：
-        Open, High, Low, Close, Volume（索引是日期）
-        
-        需要映射到标准列名：
-        date, open, high, low, close, volume, amount, pct_chg
         """
         df = df.copy()
         
         # 重置索引，将日期从索引变为列
         df = df.reset_index()
         
-        # 列名映射（yfinance 使用首字母大写）
-        column_mapping = {
-            'Date': 'date',
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close',
-            'Volume': 'volume',
-        }
+        # 统一列名（将 yfinance 的首字母大写转换为小写）
+        # yfinance 通常返回: Date, Open, High, Low, Close, Volume
+        df.columns = [c.lower() for c in df.columns]
         
-        df = df.rename(columns=column_mapping)
-        
-        # 计算涨跌幅（因为 yfinance 不直接提供）
+        # 确保包含标准列
+        # 计算涨跌幅（yfinance 不直接提供）
         if 'close' in df.columns:
+            # 填充涨跌额和涨跌幅
             df['pct_chg'] = df['close'].pct_change() * 100
             df['pct_chg'] = df['pct_chg'].fillna(0).round(2)
         
         # 计算成交额（yfinance 不提供，使用估算值）
-        # 成交额 ≈ 成交量 * 平均价格
         if 'volume' in df.columns and 'close' in df.columns:
             df['amount'] = df['volume'] * df['close']
         else:
-            df['amount'] = 0
-        
+            df['amount'] = 0.0
+            
         # 添加股票代码列
         df['code'] = stock_code
         
-        # 只保留需要的列
-        keep_cols = ['code'] + STANDARD_COLUMNS
-        existing_cols = [col for col in keep_cols if col in df.columns]
-        df = df[existing_cols]
+        # 确保日期列格式正确
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
         
-        return df
-
-
-if __name__ == "__main__":
-    # 测试代码
-    logging.basicConfig(level=logging.DEBUG)
-    
-    fetcher = YfinanceFetcher()
-    
-    try:
-        df = fetcher.get_daily_data('600519')  # 茅台
-        print(f"获取成功，共 {len(df)} 条数据")
-        print(df.tail())
-    except Exception as e:
-        print(f"获取失败: {e}")
+        # 筛选并排序最终列
+        final_cols = ['code'] + STANDARD_COLUMNS
+        # 填充缺失列
+        for col in final_cols:
+            if col not in df.columns:
+                df[col] = 0.0
+                
+        return df[final_cols]
