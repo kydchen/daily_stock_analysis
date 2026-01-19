@@ -1585,6 +1585,81 @@ class NotificationService:
             _flush_table_rows(table_buffer, lines)
 
         return "\n".join(lines).strip()
+
+   def _convert_md_to_html(self, content: str) -> str:  #优化排版
+        """
+        将 Markdown 转换为带样式的 HTML（修复邮件排版间距过大问题）
+        """
+        import markdown
+        
+        # 1. 基础转换
+        html_body = markdown.markdown(
+            content,
+            extensions=['tables', 'fenced_code', 'nl2br']
+        )
+        
+        # 2. 定义紧凑型 CSS 样式
+        # 重点优化：h1-h4 的 margin，ul/li 的 padding，p 的 margin
+        style = """
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                line-height: 1.5;
+                color: #333;
+                font-size: 14px;
+            }
+            /* 针对深色模式的优化适配 */
+            @media (prefers-color-scheme: dark) {
+                body { color: #e0e0e0; }
+                a { color: #58a6ff !important; }
+                hr { border-color: #444 !important; }
+                blockquote { border-left-color: #444 !important; color: #999 !important; }
+                th { background-color: #2d2d2d !important; border-bottom-color: #444 !important; }
+                td { border-bottom-color: #444 !important; }
+            }
+            
+            /* 标题紧凑化 */
+            h1 { font-size: 22px; margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+            h2 { font-size: 18px; margin: 15px 0 8px 0; font-weight: bold; }
+            h3 { font-size: 16px; margin: 12px 0 6px 0; font-weight: bold; }
+            
+            /* 列表和段落紧凑化 */
+            p { margin: 5px 0; }
+            ul, ol { margin: 5px 0 10px 0; padding-left: 20px; }
+            li { margin-bottom: 2px; }
+            
+            /* 表格美化 */
+            table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+            th { text-align: left; padding: 8px; background-color: #f6f8fa; border-bottom: 2px solid #ddd; }
+            td { padding: 8px; border-bottom: 1px solid #eee; }
+            
+            /* 引用块和分割线 */
+            blockquote { margin: 10px 0; padding: 0 1em; color: #666; border-left: 4px solid #ddd; }
+            hr { border: 0; border-top: 1px solid #eee; margin: 15px 0; }
+            
+            /* 代码块 */
+            pre { background-color: #f6f8fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+            code { font-family: Consolas, Monaco, "Courier New", monospace; font-size: 12px; }
+        </style>
+        """
+        
+        # 3. 组装完整的 HTML
+        full_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            {style}
+        </head>
+        <body>
+            <div style="max-width: 800px; margin: 0 auto; padding: 10px;">
+                {html_body}
+            </div>
+        </body>
+        </html>
+        """
+        return full_html
     
     def send_to_email(self, content: str, subject: Optional[str] = None) -> bool:
         """
@@ -1612,7 +1687,9 @@ class NotificationService:
                 subject = f"📈 全球市场智能分析报告 - {date_str}"
             
             # 将 Markdown 转换为简单 HTML
-            html_content = self._markdown_to_html(content)
+            #html_content = self._markdown_to_html(content)
+            # 优化排版的HTML
+            html_content = self._convert_md_to_html(content)
             
             # 构建邮件
             msg = MIMEMultipart('alternative')
