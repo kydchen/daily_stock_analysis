@@ -219,8 +219,8 @@ class StockAnalysisPipeline:
         分析单只股票（增强版：含量比、换手率、筹码分析、多维度情报）
         
         流程：
-        1. 获取实时行情（量比、换手率）
-        2. 获取筹码分布
+        1. 获取实时行情（量比、换手率）- Only A
+        2. 获取筹码分布 - Only A
         3. 进行趋势分析（基于交易理念）
         4. 多维度情报搜索（最新消息+风险排查+业绩预期）
         5. 从数据库获取分析上下文
@@ -233,10 +233,14 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失败）
         """
         try:
+            # 0. 预判资产类型 (简单判断：6位数字为A股)
+            # 防止对美股/Crypto/黄金调用 A股 专用接口导致报错
+            is_ashare = code.isdigit() and len(code) == 6
+
             # 获取股票名称（优先从实时行情获取真实名称）
             stock_name = STOCK_NAME_MAP.get(code, '')
             
-            # Step 1: 获取实时行情（量比、换手率等）
+            # Step 1: 获取实时行情（量比、换手率等） - Only A
             realtime_quote: Optional[RealtimeQuote] = None
             try:
                 realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
@@ -253,15 +257,16 @@ class StockAnalysisPipeline:
             if not stock_name:
                 stock_name = f'股票{code}'
             
-            # Step 2: 获取筹码分布
+            # Step 2: 获取筹码分布 - Only A
             chip_data: Optional[ChipDistribution] = None
-            try:
-                chip_data = self.akshare_fetcher.get_chip_distribution(code)
-                if chip_data:
-                    logger.info(f"[{code}] 筹码分布: 获利比例={chip_data.profit_ratio:.1%}, "
-                              f"90%集中度={chip_data.concentration_90:.2%}")
-            except Exception as e:
-                logger.warning(f"[{code}] 获取筹码分布失败: {e}")
+            if is_ashare:
+                try:
+                    chip_data = self.akshare_fetcher.get_chip_distribution(code)
+                    if chip_data:
+                        logger.info(f"[{code}] 筹码分布: 获利比例={chip_data.profit_ratio:.1%}, "
+                                  f"90%集中度={chip_data.concentration_90:.2%}")
+                except Exception as e:
+                    logger.warning(f"[{code}] 获取筹码分布失败: {e}")
             
             # Step 3: 趋势分析（基于交易理念）
             trend_result: Optional[TrendAnalysisResult] = None
