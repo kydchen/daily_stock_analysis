@@ -524,7 +524,23 @@ class NotificationService:
                     report_lines.append(f"**📢 最新动态**: {intel['latest_news']}")
                 
                 report_lines.append("")
+
+            # MA200
+            data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
+            price_data = data_persp.get('price_position', {})
             
+            # 计算长期主义定性（硬逻辑判断）
+            curr_p = price_data.get('current_price', 0)
+            ma200_v = price_data.get('ma200', 0)
+            ma50_v = price_data.get('ma50', 0)
+            
+            strategy_note = ""
+            if ma200_v and curr_p:
+                if curr_p > ma200_v:
+                    strategy_note = "🛡️ **战略多头** (运行于 MA200 牛熊线上方，长线安全)"
+                else:
+                    strategy_note = "💀 **战略空头** (运行于 MA200 牛熊线下方，长线慎抄底)"
+                        
             # ========== 核心结论 ==========
             core = dashboard.get('core_conclusion', {}) if dashboard else {}
             one_sentence = core.get('one_sentence', result.analysis_summary)
@@ -577,16 +593,21 @@ class NotificationService:
                 if price_data:
                     bias_status = price_data.get('bias_status', 'N/A')
                     bias_emoji = "✅" if bias_status == "安全" else ("⚠️" if bias_status == "警戒" else "🚨")
+
+                   # 计算 MA200 偏离度（真正反映长期主义的“黄金坑”或“泡沫区”）
+                   long_bias = "N/A"
+                   if ma200_v and curr_p:
+                       long_bias = f"{((curr_p - ma200_v) / ma200_v * 100):.2f}%"
+                      
                     report_lines.extend([
-                        "| 价格指标 | 数值 |",
-                        "|---------|------|",
-                        f"| 当前价 | {price_data.get('current_price', 'N/A')} |",
-                        f"| MA5 | {price_data.get('ma5', 'N/A')} |",
-                        f"| MA10 | {price_data.get('ma10', 'N/A')} |",
-                        f"| MA20 | {price_data.get('ma20', 'N/A')} |",
-                        f"| 乖离率(MA5) | {price_data.get('bias_ma5', 'N/A')}% {bias_emoji}{bias_status} |",
-                        f"| 支撑位 | {price_data.get('support_level', 'N/A')} |",
-                        f"| 压力位 | {price_data.get('resistance_level', 'N/A')} |",
+                        "| 价格指标 | 数值 | 战略状态 |",
+                        "|---------|------|---------|",
+                        f"| 当前价 | **{curr_p}** | {price_data.get('bias_ma5', 'N/A')}% (MA5乖离) |",
+                        f"| MA50 (季线) | {ma50_v} | {'🟢支撑' if curr_p > ma50_v else '🔴压力'} |",
+                        f"| **MA200 (牛熊线)** | **{ma200_v}** | **{'🚀牛市区间' if curr_p > ma200_v else '📉熊市区间'}** |",
+                        f"| 长期偏离度 | {long_bias} | MA200 乖离 |",
+                        f"| 乖离状态 | {bias_emoji}{bias_status} | 择时信号 |",
+                        f"| 支撑/压力 | {price_data.get('support_level', 'N/A')} / {price_data.get('resistance_level', 'N/A')} | 关键位 |",
                         "",
                     ])
                 
