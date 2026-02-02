@@ -465,57 +465,62 @@ class StockAnalysisPipeline:
         """
         enhanced = context.copy()
 
-        # 注入当前分析的确切时间，让 AI 知道数据是否有延时
+        # 1. 注入当前分析的确切时间，让 AI 知道数据是否有延时
         from datetime import datetime
         enhanced['analysis_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S (UTC+8)')
-    
-        if realtime_quote:
-            enhanced['realtime'] = {
-                'price': realtime_quote.price,
-                'pct_chg': realtime_quote.change_pct,
-                # 关键：将我们在 analyze_stock 中存入 remark 的盘前状态提取出来
-                'market_note': getattr(realtime_quote, 'remark', 'REGULAR'),
-            }
-
         
-        # 添加股票名称
+        # 2. 添加股票名称
         if stock_name:
             enhanced['stock_name'] = stock_name
         elif realtime_quote and realtime_quote.name:
             enhanced['stock_name'] = realtime_quote.name
-        
-        # 添加实时行情
+
+        # 3. 整合实时行情数据 (包括盘前/盘后备注)
         if realtime_quote:
             enhanced['realtime'] = {
-                'name': realtime_quote.name,  # 股票名称
+                'name': realtime_quote.name,
                 'price': realtime_quote.price,
+                'pct_chg': realtime_quote.change_pct,
+                # 关键：获取盘前/盘后状态，如果是 yfinance 抓取的会包含 Pre/Post 信息
+                'market_note': getattr(realtime_quote, 'remark', 'REGULAR'),
                 'volume_ratio': realtime_quote.volume_ratio,
-                'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio),
+                'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio) if hasattr(self, '_describe_volume_ratio') else "",
                 'turnover_rate': realtime_quote.turnover_rate,
                 'pe_ratio': realtime_quote.pe_ratio,
                 'pb_ratio': realtime_quote.pb_ratio,
                 'total_mv': realtime_quote.total_mv,
                 'circ_mv': realtime_quote.circ_mv,
-                'change_60d': realtime_quote.change_60d,
             }
-        
-        # 添加筹码分布
-        if chip_data:
+        else:
+            enhanced['realtime'] = None
+
+        # 4. 添加筹码分布 (仅当有数据时添加，否则设为 None 防止 AI 对 Crypto 产生幻觉)
+        if chip_data and hasattr(chip_data, 'profit_ratio'):
             current_price = realtime_quote.price if realtime_quote else 0
             enhanced['chip'] = {
                 'profit_ratio': chip_data.profit_ratio,
                 'avg_cost': chip_data.avg_cost,
                 'concentration_90': chip_data.concentration_90,
                 'concentration_70': chip_data.concentration_70,
-                'chip_status': chip_data.get_chip_status(current_price),
+                'chip_status': chip_data.get_chip_status(current_price) if hasattr(chip_data, 'get_chip_status') else "未知",
             }
+        else:
+            # 明确告知 AI 此资产无筹码分布数据（如 BTC、美股）
+            enhanced['chip'] = None
         
-        # 添加趋势分析结果
+        # 5. 添加趋势分析结果 (注入 MA50, MA200 等长线锚点)
         if trend_result:
+            current_price = realtime_quote.price if realtime_quote else trend_result.current_price
             enhanced['trend_analysis'] = {
                 'trend_status': trend_result.trend_status.value,
                 'ma_alignment': trend_result.ma_alignment,
                 'trend_strength': trend_result.trend_strength,
+                'current_price': current_price,
+                'ma5': trend_result.ma5,
+                'ma10': trend_result.ma10,
+                'ma20': trend_result.ma20,
+                'ma50': trend_result.ma50,
+                'ma200': trend_result.ma200,
                 'bias_ma5': trend_result.bias_ma5,
                 'bias_ma10': trend_result.bias_ma10,
                 'volume_status': trend_result.volume_status.value,
@@ -524,12 +529,79 @@ class StockAnalysisPipeline:
                 'signal_score': trend_result.signal_score,
                 'signal_reasons': trend_result.signal_reasons,
                 'risk_factors': trend_result.risk_factors,
-                'ma50': trend_result.ma50,   
-                'ma200': trend_result.ma200, 
-                'is_bullish': trend_result.trend_status.value == "多头排列"
+                # 长期主义核心判断：现价是否在 200 日牛熊分界线上方
+                'is_above_ma200': current_price > trend_result.ma200 if trend_result.ma200 > 0 else True,
+                'is_bullish': "多头" in trend_result.trend_status.value
             }
         
         return enhanced
+
+        # # 注入当前分析的确切时间，让 AI 知道数据是否有延时
+        # from datetime import datetime
+        # enhanced['analysis_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S (UTC+8)')
+        
+        # # 整合实时行情数据 (包括盘前/盘后备注)
+        # if realtime_quote:
+        #     enhanced['realtime'] = {
+        #         'price': realtime_quote.price,
+        #         'pct_chg': realtime_quote.change_pct,
+        #         # 关键：将我们在 analyze_stock 中存入 remark 的盘前状态提取出来
+        #         'market_note': getattr(realtime_quote, 'remark', 'REGULAR'),
+        #     }
+
+        
+        # # 添加股票名称
+        # if stock_name:
+        #     enhanced['stock_name'] = stock_name
+        # elif realtime_quote and realtime_quote.name:
+        #     enhanced['stock_name'] = realtime_quote.name
+        
+        # # 添加实时行情
+        # if realtime_quote:
+        #     enhanced['realtime'] = {
+        #         'name': realtime_quote.name,  # 股票名称
+        #         'price': realtime_quote.price,
+        #         'volume_ratio': realtime_quote.volume_ratio,
+        #         'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio),
+        #         'turnover_rate': realtime_quote.turnover_rate,
+        #         'pe_ratio': realtime_quote.pe_ratio,
+        #         'pb_ratio': realtime_quote.pb_ratio,
+        #         'total_mv': realtime_quote.total_mv,
+        #         'circ_mv': realtime_quote.circ_mv,
+        #         'change_60d': realtime_quote.change_60d,
+        #     }
+        
+        # # 添加筹码分布
+        # if chip_data:
+        #     current_price = realtime_quote.price if realtime_quote else 0
+        #     enhanced['chip'] = {
+        #         'profit_ratio': chip_data.profit_ratio,
+        #         'avg_cost': chip_data.avg_cost,
+        #         'concentration_90': chip_data.concentration_90,
+        #         'concentration_70': chip_data.concentration_70,
+        #         'chip_status': chip_data.get_chip_status(current_price),
+        #     }
+        
+        # # 添加趋势分析结果
+        # if trend_result:
+        #     enhanced['trend_analysis'] = {
+        #         'trend_status': trend_result.trend_status.value,
+        #         'ma_alignment': trend_result.ma_alignment,
+        #         'trend_strength': trend_result.trend_strength,
+        #         'bias_ma5': trend_result.bias_ma5,
+        #         'bias_ma10': trend_result.bias_ma10,
+        #         'volume_status': trend_result.volume_status.value,
+        #         'volume_trend': trend_result.volume_trend,
+        #         'buy_signal': trend_result.buy_signal.value,
+        #         'signal_score': trend_result.signal_score,
+        #         'signal_reasons': trend_result.signal_reasons,
+        #         'risk_factors': trend_result.risk_factors,
+        #         'ma50': trend_result.ma50,   
+        #         'ma200': trend_result.ma200, 
+        #         'is_bullish': trend_result.trend_status.value == "多头排列"
+        #     }
+        
+        # return enhanced
     
     def _describe_volume_ratio(self, volume_ratio: float) -> str:
         """
