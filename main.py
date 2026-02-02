@@ -50,6 +50,7 @@ from notification import NotificationService, NotificationChannel, send_daily_re
 from search_service import SearchService, SearchResponse
 from stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
 from market_analyzer import MarketAnalyzer
+from data_provider.yfinance_fetcher import YfinanceFetcher
 
 # 配置日志格式
 LOG_FORMAT = '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s'
@@ -150,6 +151,7 @@ class StockAnalysisPipeline:
         self.db = get_db()
         self.fetcher_manager = DataFetcherManager()
         self.akshare_fetcher = AkshareFetcher()  # 用于获取增强数据（量比、筹码等）
+        self.yfinance_fetcher = YfinanceFetcher()
         self.trend_analyzer = StockTrendAnalyzer()  # 趋势分析器
         self.analyzer = GeminiAnalyzer()
         self.notifier = NotificationService()
@@ -285,6 +287,8 @@ class StockAnalysisPipeline:
                     chip_data = self.akshare_fetcher.get_chip_distribution(code)
                 except Exception as e:
                     logger.warning(f"[{code}] 获取筹码分布失败: {e}")
+            else:
+                chip_data = None # 👈 显式置空，防止脏数据干扰
 
             # Step 3: 趋势分析（基于交易理念，含 MA200 长线过滤）
             trend_result: Optional[TrendAnalysisResult] = None
