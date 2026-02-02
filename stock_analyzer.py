@@ -72,6 +72,8 @@ class TrendAnalysisResult:
     ma10: float = 0.0
     ma20: float = 0.0
     ma60: float = 0.0
+    ma200: float = 0.0
+    atr: float = 0.0 # 动态乖离率
     current_price: float = 0.0
     
     # 乖离率（与 MA5 的偏离度）
@@ -198,11 +200,18 @@ class StockTrendAnalyzer:
         df['MA5'] = df['close'].rolling(window=5).mean()
         df['MA10'] = df['close'].rolling(window=10).mean()
         df['MA20'] = df['close'].rolling(window=20).mean()
-        if len(df) >= 60:
-            df['MA60'] = df['close'].rolling(window=60).mean()
-        else:
-            df['MA60'] = df['MA20']  # 数据不足时使用 MA20 替代
+        df['MA50'] = df['close'].rolling(window=50).mean()
+        df['MA200'] = df['close'].rolling(window=200).mean()
+        high_low = df['high'] - df['low']
+        high_cp = (df['high'] - df['close'].shift()).abs()
+        low_cp = (df['low'] - df['close'].shift()).abs()
+        df['ATR'] = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1).rolling(window=14).mean()
         return df
+        # if len(df) >= 60:
+        #     df['MA60'] = df['close'].rolling(window=60).mean()
+        # else:
+        #     df['MA60'] = df['MA20']  # 数据不足时使用 MA20 替代
+        # return df
     
     def _analyze_trend(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """
@@ -358,6 +367,16 @@ class StockTrendAnalyzer:
         score = 0
         reasons = []
         risks = []
+
+        # === 新增：基于 ATR 的动态乖离率检查 ===
+        atr_val = result.atr
+        if atr_val > 0:
+            # 使用 1.5 倍 ATR 作为动态波动阈值
+            dynamic_threshold = (atr_val * 1.5 / result.current_price) * 100
+            if result.bias_ma5 > dynamic_threshold:
+                risks.append(f"❌ 动态乖离过高({result.bias_ma5:.1f}% > ATR阈值{dynamic_threshold:.1f}%)，存在过热风险")
+                # 可选：如果动态乖离过高，可以适当扣分
+                score -= 10
         
         # === 趋势评分（40分）===
         trend_scores = {
