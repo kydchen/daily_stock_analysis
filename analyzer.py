@@ -946,7 +946,7 @@ class GeminiAnalyzer:
 |------|------|------|
 | MA5 | {today.get('ma5', 'N/A')} | 短期 |
 | MA10 | {today.get('ma10', 'N/A')} | 短期 |
-| MA20 | {today.get('ma20', 'N/A')} | 中期生命线 |
+| MA20 | {today.get('ma20', 'N/A')} | 中期月线 |
 | MA50 | {trend.get('ma50', 'N/A')} | 中期季度线 |
 | MA200 | {trend.get('ma200', 'N/A')} | 长期牛熊分界线 |
 | 均线形态 | {context.get('ma_status', '未知')} | |
@@ -980,6 +980,8 @@ class GeminiAnalyzer:
 | 90%集中度 | {chip.get('concentration_90', 0):.2%} | <10%为高度集中 |
 | 筹码状态 | {chip.get('chip_status', '未知')} | |
 """
+        else:
+            prompt += "\n**注：该资产不适用筹码分布分析，请勿臆造数据，JSON中相关字段请返回 null。**\n"
 
         # ========== 5. 趋势分析预判 ==========
         if 'trend_analysis' in context:
