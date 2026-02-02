@@ -834,7 +834,21 @@ class GeminiAnalyzer:
                 risk_warning='分析失败，请稍后重试', success=False,
                 error_message=str(e)
             )
-
+            
+    def _safe_float(self, value, default=0.0):
+    """确保将任何值安全地转换为浮点数"""
+    if value is None:
+        return default
+    try:
+        # 处理可能的字符串百分比或逗号
+        if isinstance(value, str):
+            value = value.replace('%', '').replace(',', '').strip()
+            if value.lower() in ['n/a', 'none', 'null', '']:
+                return default
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+    
     def _format_prompt(
         self, 
         context: Dict[str, Any], 
@@ -854,24 +868,18 @@ class GeminiAnalyzer:
         trend = context.get('trend_analysis') or {}
         realtime = context.get('realtime') or {}
         
-        # # 优先使用上下文中的股票名称
-        # stock_name = context.get('stock_name', name)
-        # if not stock_name or stock_name == f'股票{code}':
-        #     stock_name = STOCK_NAME_MAP.get(code, f'{asset_type}:{code}')
         
         # 获取资产名称（优先级：context > 映射表）
         stock_name = context.get('stock_name') or name or f"Asset-{code}"
-            
-        # today = context.get('today', {})
-        # trend = context.get('trend_analysis', {})
-        
+               
 
         # 安全获取当前价格（用于后续计算）
         current_price_raw = realtime.get('price') or today.get('close')
-        try:
-            current_price = float(current_price_raw) if current_price_raw is not None else None
-        except (ValueError, TypeError):
-            current_price = None
+        # try:
+        #     current_price = float(current_price_raw) if current_price_raw is not None else None
+        # except (ValueError, TypeError):
+        #     current_price = None
+        current_price = self._safe_float(current_price_raw, default=0.0)
         
         # ========== 1. 头部与资产专属逻辑 ==========
         prompt = f"# {asset_type} 决策仪表盘分析请求\n\n"
@@ -1125,13 +1133,13 @@ class GeminiAnalyzer:
                     operation_advice=data.get('operation_advice', '持有'),
                     confidence_level=data.get('confidence_level', '中'),
 
-                    ma5=float(price_pos.get('ma5', 0)),
-                    ma10=float(price_pos.get('ma10', 0)),
-                    ma20=float(price_pos.get('ma20', 0)),
-                    ma50=float(price_pos.get('ma50', 0)),
-                    ma200=float(price_pos.get('ma200', 0)),
-                    current_price=float(price_pos.get('current_price', 0)),
-                    bias_ma5=float(price_pos.get('bias_ma5', 0)),
+                    ma5=self._safe_float(price_pos.get('ma5')),
+                    ma10=self._safe_float(price_pos.get('ma10')),
+                    ma20=self._safe_float(price_pos.get('ma20')),
+                    ma50=self._safe_float(price_pos.get('ma50')),
+                    ma200=self._safe_float(price_pos.get('ma200')),
+                    current_price=self._safe_float(price_pos.get('current_price')),
+                    bias_ma5=self._safe_float(price_pos.get('bias_ma5')),
                     
                     # 决策仪表盘
                     dashboard=dashboard,
