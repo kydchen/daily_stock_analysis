@@ -524,6 +524,9 @@ class StockAnalysisPipeline:
                 'signal_score': trend_result.signal_score,
                 'signal_reasons': trend_result.signal_reasons,
                 'risk_factors': trend_result.risk_factors,
+                'ma50': trend_result.ma50,   
+                'ma200': trend_result.ma200, 
+                'is_bullish': trend_result.trend_status.value == "多头排列"
             }
         
         return enhanced
