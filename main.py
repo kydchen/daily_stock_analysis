@@ -262,7 +262,14 @@ class StockAnalysisPipeline:
                         realtime_quote = RealtimeQuote(
                             code=code,
                             name=stock_name or code,
-                            price=raw_realtime.get('current_price', 0),
+                            price=float(raw_realtime.get('current_price', 0)),
+                            volume=float(raw_realtime.get('volume', 0)),
+                            amount=float(raw_realtime.get('amount', 0)),
+                            high=float(raw_realtime.get('high', 0)),
+                            low=float(raw_realtime.get('low', 0)),
+                            open=float(raw_realtime.get('open', 0)),
+                            last_close=float(raw_realtime.get('previous_close', 0)),
+                            time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                             change_pct=raw_realtime.get('change_pct', 0),
                             # 盘前数据中，我们将市场状态存入备注，方便 AI 识别
                             remark=f"MarketState:{raw_realtime.get('market_state')} | PreChange:{raw_realtime.get('pre_change_pct')}%"
