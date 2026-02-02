@@ -20,6 +20,7 @@ import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, List, Tuple
+from dataclasses import dataclass
 
 import pandas as pd
 import numpy as np
@@ -37,6 +38,28 @@ logger = logging.getLogger(__name__)
 # === 标准化列名定义 ===
 STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'pct_chg']
 
+@dataclass
+class RealtimeQuote:
+    """实时行情数据类"""
+    code: str
+    name: str
+    price: float
+    pct_chg: float
+    volume: float
+    amount: float
+    high: float
+    low: float
+    open: float
+    last_close: float
+    time: str
+    # 增强指标
+    volume_ratio: Optional[float] = None
+    turnover_rate: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    total_mv: Optional[float] = None
+    circ_mv: Optional[float] = None
+    market_note: str = "正常交易"
 
 class DataFetchError(Exception):
     """数据获取异常基类"""
