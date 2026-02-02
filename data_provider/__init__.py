@@ -17,7 +17,7 @@
 5. YfinanceFetcher (Priority 4) - 来自 yfinance 库
 """
 
-from .base import BaseFetcher, DataFetcherManager
+from .base import BaseFetcher, DataFetcherManager, RealtimeQuote
 from .efinance_fetcher import EfinanceFetcher
 from .akshare_fetcher import AkshareFetcher
 from .tushare_fetcher import TushareFetcher
@@ -27,6 +27,7 @@ from .yfinance_fetcher import YfinanceFetcher
 __all__ = [
     'BaseFetcher',
     'DataFetcherManager',
+    'RealtimeQuote',
     'EfinanceFetcher',
     'AkshareFetcher',
     'TushareFetcher',
