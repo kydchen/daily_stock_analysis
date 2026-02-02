@@ -93,6 +93,7 @@ class TrendAnalysisResult:
             'ma20': self.ma20,
             'ma50': self.ma50,
             'ma200': self.ma200,
+            'atr': self.atr,
             'current_price': self.current_price,
             'bias_ma5': self.bias_ma5,
             'bias_ma10': self.bias_ma10,
@@ -161,6 +162,8 @@ class StockTrendAnalyzer:
         result.ma10 = float(latest['MA10'])
         result.ma20 = float(latest['MA20'])
         result.ma50 = float(latest.get('MA50', 0))
+        result.ma200 = float(latest.get('MA200', 0))
+        result.atr = float(latest.get('ATR', 0))
         
         # 1. 趋势判断
         self._analyze_trend(df, result)
