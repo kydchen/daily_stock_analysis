@@ -485,7 +485,21 @@ class NotificationService:
                 f"## {signal_emoji} {stock_name} ({result.code})",
                 "",
             ])
+           
+            # =======MA200
+            data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
+            price_data = data_persp.get('price_position', {})
             
+            curr_p = price_data.get('current_price', 0)
+            ma200_v = price_data.get('ma200', 0)
+            ma50_v = price_data.get('ma50', 0)
+            
+            if ma200_v and curr_p:
+                status_icon = "🛡️" if curr_p > ma200_v else "💀"
+                status_text = "战略多头 (运行于 MA200 牛熊线上方)" if curr_p > ma200_v else "战略空头 (运行于 MA200 牛熊线下方)"
+                report_lines.append(f"### 🗺️ 战略方位")
+                report_lines.append(f"{status_icon} **{status_text}**")
+                report_lines.append("")
             # ========== 舆情与基本面概览（放在最前面）==========
             intel = dashboard.get('intelligence', {}) if dashboard else {}
             if intel:
@@ -524,23 +538,7 @@ class NotificationService:
                     report_lines.append(f"**📢 最新动态**: {intel['latest_news']}")
                 
                 report_lines.append("")
-
-            # MA200
-            data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
-            price_data = data_persp.get('price_position', {})
-            
-            # 计算长期主义定性（硬逻辑判断）
-            curr_p = price_data.get('current_price', 0)
-            ma200_v = price_data.get('ma200', 0)
-            ma50_v = price_data.get('ma50', 0)
-            
-            strategy_note = ""
-            if ma200_v and curr_p:
-                if curr_p > ma200_v:
-                    strategy_note = "🛡️ **战略多头** (运行于 MA200 牛熊线上方，长线安全)"
-                else:
-                    strategy_note = "💀 **战略空头** (运行于 MA200 牛熊线下方，长线慎抄底)"
-                        
+ 
             # ========== 核心结论 ==========
             core = dashboard.get('core_conclusion', {}) if dashboard else {}
             one_sentence = core.get('one_sentence', result.analysis_summary)
