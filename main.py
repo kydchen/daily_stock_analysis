@@ -495,7 +495,8 @@ class StockAnalysisPipeline:
                 # 关键：获取盘前/盘后状态，如果是 yfinance 抓取的会包含 Pre/Post 信息
                 'market_note': getattr(realtime_quote, 'remark', 'REGULAR'),
                 'volume_ratio': realtime_quote.volume_ratio,
-                'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio) if hasattr(self, '_describe_volume_ratio') else "",
+                #'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio) if hasattr(self, '_describe_volume_ratio') else "",
+                'volume_ratio_desc': self._describe_volume_ratio(realtime_quote.volume_ratio) if realtime_quote and realtime_quote.volume_ratio is not None else "不适用",
                 'turnover_rate': realtime_quote.turnover_rate,
                 'pe_ratio': realtime_quote.pe_ratio,
                 'pb_ratio': realtime_quote.pb_ratio,
@@ -620,18 +621,25 @@ class StockAnalysisPipeline:
         
         量比 = 当前成交量 / 过去5日平均成交量
         """
-        if volume_ratio < 0.5:
-            return "极度萎缩"
-        elif volume_ratio < 0.8:
-            return "明显萎缩"
-        elif volume_ratio < 1.2:
-            return "正常"
-        elif volume_ratio < 2.0:
-            return "温和放量"
-        elif volume_ratio < 3.0:
-            return "明显放量"
-        else:
-            return "巨量"
+        if volume_ratio is None:
+            return "不适用"
+            
+        try:
+            val = float(volume_ratio)
+            if val < 0.5:
+                return "极度萎缩"
+            elif val < 0.8:
+                return "明显萎缩"
+            elif val < 1.2:
+                return "正常"
+            elif val < 2.0:
+                return "温和放量"
+            elif val < 3.0:
+                return "明显放量"
+            else:
+                return "巨量"
+        except (ValueError, TypeError):
+            return "数据异常"
     
     def process_single_stock(
         self, 
