@@ -464,6 +464,19 @@ class StockAnalysisPipeline:
             增强后的上下文
         """
         enhanced = context.copy()
+
+        # 注入当前分析的确切时间，让 AI 知道数据是否有延时
+        from datetime import datetime
+        enhanced['analysis_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S (UTC+8)')
+    
+        if realtime_quote:
+            enhanced['realtime'] = {
+                'price': realtime_quote.price,
+                'pct_chg': realtime_quote.change_pct,
+                # 关键：将我们在 analyze_stock 中存入 remark 的盘前状态提取出来
+                'market_note': getattr(realtime_quote, 'remark', 'REGULAR'),
+            }
+
         
         # 添加股票名称
         if stock_name:
