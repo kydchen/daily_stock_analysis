@@ -233,100 +233,207 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失败）
         """
         try:
-            # 0. 预判资产类型 (简单判断：6位数字为A股)
-            # 防止对美股/Crypto/黄金调用 A股 专用接口导致报错
+            # 0. 资产类型预判
+            # 6位纯数字为 A 股；包含 '-' 或字母的通常为美股/Crypto
             is_ashare = code.isdigit() and len(code) == 6
-
-            # 获取股票名称（优先从实时行情获取真实名称）
+            
+            # 获取股票基础名称
             stock_name = STOCK_NAME_MAP.get(code, '')
             
-            # Step 1: 获取实时行情（量比、换手率等） - Only A
+            # Step 1: 获取实时行情（针对不同资产类型分流）
             realtime_quote: Optional[RealtimeQuote] = None
-            try:
-                realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
-                if realtime_quote:
-                    # 使用实时行情返回的真实股票名称
-                    if realtime_quote.name:
-                        stock_name = realtime_quote.name
-                    logger.info(f"[{code}] {stock_name} 实时行情: 价格={realtime_quote.price}, "
-                              f"量比={realtime_quote.volume_ratio}, 换手率={realtime_quote.turnover_rate}%")
-            except Exception as e:
-                logger.warning(f"[{code}] 获取实时行情失败: {e}")
             
-            # 如果还是没有名称，使用代码作为名称
+            if is_ashare:
+                # A 股专用逻辑：通过 Akshare 获取量比/换手率
+                try:
+                    realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
+                except Exception as e:
+                    logger.warning(f"[{code}] 获取 A 股实时行情失败 (可能是网络波动): {e}")
+            else:
+                # 美股/BTC/黄金专用逻辑：通过 yfinance 获取盘前/实时数据
+                try:
+                    # 调用你之前添加在 yfinance_fetcher 中的方法
+                    raw_realtime = self.yfinance_fetcher.fetch_realtime_data(code)
+                    if raw_realtime:
+                        # 将 yfinance 的原始数据包装成 RealtimeQuote 兼容格式
+                        from data_provider.base import RealtimeQuote # 确保导入
+                        realtime_quote = RealtimeQuote(
+                            code=code,
+                            name=stock_name or code,
+                            price=raw_realtime.get('current_price', 0),
+                            change_pct=raw_realtime.get('change_pct', 0),
+                            # 盘前数据中，我们将市场状态存入备注，方便 AI 识别
+                            remark=f"MarketState:{raw_realtime.get('market_state')} | PreChange:{raw_realtime.get('pre_change_pct')}%"
+                        )
+                        # 如果 yfinance 返回了 symbol 对应的真实名称，可以更新
+                        stock_name = stock_name or code
+                except Exception as e:
+                    logger.warning(f"[{code}] 获取全球资产实时数据失败: {e}")
+
+            # 更新名称显示
+            if realtime_quote and realtime_quote.name:
+                stock_name = realtime_quote.name
             if not stock_name:
-                stock_name = f'股票{code}'
-            
-            # Step 2: 获取筹码分布 - Only A
+                stock_name = f'资产{code}'
+
+            logger.info(f"[{code}] {stock_name} 实时状态已锁定，准备进行深度分析")
+
+            # Step 2: 获取筹码分布 - Only A (非A股直接跳过)
             chip_data: Optional[ChipDistribution] = None
             if is_ashare:
                 try:
                     chip_data = self.akshare_fetcher.get_chip_distribution(code)
-                    if chip_data:
-                        logger.info(f"[{code}] 筹码分布: 获利比例={chip_data.profit_ratio:.1%}, "
-                                  f"90%集中度={chip_data.concentration_90:.2%}")
                 except Exception as e:
                     logger.warning(f"[{code}] 获取筹码分布失败: {e}")
-            
-            # Step 3: 趋势分析（基于交易理念）
+
+            # Step 3: 趋势分析（基于交易理念，含 MA200 长线过滤）
             trend_result: Optional[TrendAnalysisResult] = None
             try:
-                # 获取历史数据进行趋势分析
                 context = self.db.get_analysis_context(code)
                 if context and 'raw_data' in context:
                     import pandas as pd
                     raw_data = context['raw_data']
                     if isinstance(raw_data, list) and len(raw_data) > 0:
                         df = pd.DataFrame(raw_data)
+                        # 这里调用的 trend_analyzer 已经包含你修改的 MA200 和 ATR 逻辑
                         trend_result = self.trend_analyzer.analyze(df, code)
-                        logger.info(f"[{code}] 趋势分析: {trend_result.trend_status.value}, "
-                                  f"买入信号={trend_result.buy_signal.value}, 评分={trend_result.signal_score}")
             except Exception as e:
-                logger.warning(f"[{code}] 趋势分析失败: {e}")
-            
-            # Step 4: 多维度情报搜索（最新消息+风险排查+业绩预期）
+                logger.warning(f"[{code}] 趋势分析计算失败: {e}")
+
+            # Step 4: 多维度情报搜索 (维持原有逻辑，自动适配中英文搜索)
             news_context = None
             if self.search_service.is_available:
-                logger.info(f"[{code}] 开始多维度情报搜索...")
-                
-                # 使用多维度搜索（最多3次搜索）
                 intel_results = self.search_service.search_comprehensive_intel(
                     stock_code=code,
                     stock_name=stock_name,
                     max_searches=3
                 )
-                
-                # 格式化情报报告
                 if intel_results:
                     news_context = self.search_service.format_intel_report(intel_results, stock_name)
-                    total_results = sum(
-                        len(r.results) for r in intel_results.values() if r.success
-                    )
-                    logger.info(f"[{code}] 情报搜索完成: 共 {total_results} 条结果")
-                    logger.debug(f"[{code}] 情报搜索结果:\n{news_context}")
-            else:
-                logger.info(f"[{code}] 搜索服务不可用，跳过情报搜索")
-            
-            # Step 5: 获取分析上下文（技术面数据）
+
+            # Step 5 & 6: 获取并增强上下文
             context = self.db.get_analysis_context(code)
-            
             if context is None:
-                logger.warning(f"[{code}] 无法获取分析上下文，跳过分析")
                 return None
-            
-            # Step 6: 增强上下文数据（添加实时行情、筹码、趋势分析结果、股票名称）
+
+            # 注入宏观因子（此处建议从 market_analyzer 获取 DXY/US10Y 数据注入）
+            # 假设你已经在数据库或内存中保存了宏观数据
+            if hasattr(self, 'market_analyzer'):
+                macro_info = self.market_analyzer._get_macro_context()
+                context['macro_indicators'] = macro_info
+
             enhanced_context = self._enhance_context(
                 context, 
                 realtime_quote, 
                 chip_data, 
                 trend_result,
-                stock_name  # 传入股票名称
+                stock_name
             )
-            
-            # Step 7: 调用 AI 分析（传入增强的上下文和新闻）
+
+            # Step 7: 调用 AI 分析（由 Gemini 3.0 Pro 决策）
             result = self.analyzer.analyze(enhanced_context, news_context=news_context)
             
             return result
+
+        except Exception as e:
+            logger.error(f"[{code}] 核心分析流程崩溃: {e}")
+            logger.exception(f"[{code}] 详细 Traceback:")
+            return None
+        # try:
+        #     # 0. 预判资产类型 (简单判断：6位数字为A股)
+        #     # 防止对美股/Crypto/黄金调用 A股 专用接口导致报错
+        #     is_ashare = code.isdigit() and len(code) == 6
+
+        #     # 获取股票名称（优先从实时行情获取真实名称）
+        #     stock_name = STOCK_NAME_MAP.get(code, '')
+            
+        #     # Step 1: 获取实时行情（量比、换手率等） - Only A
+        #     realtime_quote: Optional[RealtimeQuote] = None
+        #     try:
+        #         realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
+        #         if realtime_quote:
+        #             # 使用实时行情返回的真实股票名称
+        #             if realtime_quote.name:
+        #                 stock_name = realtime_quote.name
+        #             logger.info(f"[{code}] {stock_name} 实时行情: 价格={realtime_quote.price}, "
+        #                       f"量比={realtime_quote.volume_ratio}, 换手率={realtime_quote.turnover_rate}%")
+        #     except Exception as e:
+        #         logger.warning(f"[{code}] 获取实时行情失败: {e}")
+            
+        #     # 如果还是没有名称，使用代码作为名称
+        #     if not stock_name:
+        #         stock_name = f'股票{code}'
+            
+        #     # Step 2: 获取筹码分布 - Only A
+        #     chip_data: Optional[ChipDistribution] = None
+        #     if is_ashare:
+        #         try:
+        #             chip_data = self.akshare_fetcher.get_chip_distribution(code)
+        #             if chip_data:
+        #                 logger.info(f"[{code}] 筹码分布: 获利比例={chip_data.profit_ratio:.1%}, "
+        #                           f"90%集中度={chip_data.concentration_90:.2%}")
+        #         except Exception as e:
+        #             logger.warning(f"[{code}] 获取筹码分布失败: {e}")
+            
+        #     # Step 3: 趋势分析（基于交易理念）
+        #     trend_result: Optional[TrendAnalysisResult] = None
+        #     try:
+        #         # 获取历史数据进行趋势分析
+        #         context = self.db.get_analysis_context(code)
+        #         if context and 'raw_data' in context:
+        #             import pandas as pd
+        #             raw_data = context['raw_data']
+        #             if isinstance(raw_data, list) and len(raw_data) > 0:
+        #                 df = pd.DataFrame(raw_data)
+        #                 trend_result = self.trend_analyzer.analyze(df, code)
+        #                 logger.info(f"[{code}] 趋势分析: {trend_result.trend_status.value}, "
+        #                           f"买入信号={trend_result.buy_signal.value}, 评分={trend_result.signal_score}")
+        #     except Exception as e:
+        #         logger.warning(f"[{code}] 趋势分析失败: {e}")
+            
+        #     # Step 4: 多维度情报搜索（最新消息+风险排查+业绩预期）
+        #     news_context = None
+        #     if self.search_service.is_available:
+        #         logger.info(f"[{code}] 开始多维度情报搜索...")
+                
+        #         # 使用多维度搜索（最多3次搜索）
+        #         intel_results = self.search_service.search_comprehensive_intel(
+        #             stock_code=code,
+        #             stock_name=stock_name,
+        #             max_searches=3
+        #         )
+                
+        #         # 格式化情报报告
+        #         if intel_results:
+        #             news_context = self.search_service.format_intel_report(intel_results, stock_name)
+        #             total_results = sum(
+        #                 len(r.results) for r in intel_results.values() if r.success
+        #             )
+        #             logger.info(f"[{code}] 情报搜索完成: 共 {total_results} 条结果")
+        #             logger.debug(f"[{code}] 情报搜索结果:\n{news_context}")
+        #     else:
+        #         logger.info(f"[{code}] 搜索服务不可用，跳过情报搜索")
+            
+        #     # Step 5: 获取分析上下文（技术面数据）
+        #     context = self.db.get_analysis_context(code)
+            
+        #     if context is None:
+        #         logger.warning(f"[{code}] 无法获取分析上下文，跳过分析")
+        #         return None
+            
+        #     # Step 6: 增强上下文数据（添加实时行情、筹码、趋势分析结果、股票名称）
+        #     enhanced_context = self._enhance_context(
+        #         context, 
+        #         realtime_quote, 
+        #         chip_data, 
+        #         trend_result,
+        #         stock_name  # 传入股票名称
+        #     )
+            
+        #     # Step 7: 调用 AI 分析（传入增强的上下文和新闻）
+        #     result = self.analyzer.analyze(enhanced_context, news_context=news_context)
+            
+        #     return result
             
         except Exception as e:
             logger.error(f"[{code}] 分析失败: {e}")
