@@ -486,7 +486,7 @@ class NotificationService:
                 "",
             ])
            
-            # =======MA200
+            # ========== 战略方位 (长期主义 MA200) ==========
             data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
             price_data = data_persp.get('price_position', {})
             
@@ -500,23 +500,18 @@ class NotificationService:
                 report_lines.append(f"### 🗺️ 战略方位")
                 report_lines.append(f"{status_icon} **{status_text}**")
                 report_lines.append("")
-            # ========== 舆情与基本面概览（放在最前面）==========
+            # ========== 舆情与基本面概览 ==========
             intel = dashboard.get('intelligence', {}) if dashboard else {}
             if intel:
                 report_lines.extend([
                     "### 📰 重要信息速览",
                     "",
                 ])
-                
-                # 舆情情绪总结
                 if intel.get('sentiment_summary'):
                     report_lines.append(f"**💭 舆情情绪**: {intel['sentiment_summary']}")
-                
-                # 业绩预期
                 if intel.get('earnings_outlook'):
                     report_lines.append(f"**📊 业绩预期**: {intel['earnings_outlook']}")
                 
-                # 风险警报（醒目显示）
                 risk_alerts = intel.get('risk_alerts', [])
                 if risk_alerts:
                     report_lines.append("")
@@ -524,7 +519,6 @@ class NotificationService:
                     for alert in risk_alerts:
                         report_lines.append(f"- {alert}")
                 
-                # 利好催化
                 catalysts = intel.get('positive_catalysts', [])
                 if catalysts:
                     report_lines.append("")
@@ -532,7 +526,6 @@ class NotificationService:
                     for cat in catalysts:
                         report_lines.append(f"- {cat}")
                 
-                # 最新消息
                 if intel.get('latest_news'):
                     report_lines.append("")
                     report_lines.append(f"**📢 最新动态**: {intel['latest_news']}")
@@ -556,7 +549,6 @@ class NotificationService:
                 "",
             ])
             
-            # 持仓分类建议
             if pos_advice:
                 report_lines.extend([
                     "| 持仓情况 | 操作建议 |",
@@ -566,11 +558,9 @@ class NotificationService:
                     "",
                 ])
             
-            # ========== 数据透视 ==========
-            data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
+            # ========== 数据透视 (增强版) ==========
             if data_persp:
                 trend_data = data_persp.get('trend_status', {})
-                price_data = data_persp.get('price_position', {})
                 vol_data = data_persp.get('volume_analysis', {})
                 chip_data = data_persp.get('chip_structure', {})
                 
@@ -579,37 +569,30 @@ class NotificationService:
                     "",
                 ])
                 
-                # 趋势状态
                 if trend_data:
                     is_bullish = "✅ 是" if trend_data.get('is_bullish', False) else "❌ 否"
-                    report_lines.extend([
-                        f"**均线排列**: {trend_data.get('ma_alignment', 'N/A')} | 多头排列: {is_bullish} | 趋势强度: {trend_data.get('trend_score', 'N/A')}/100",
-                        "",
-                    ])
+                    report_lines.append(f"**均线排列**: {trend_data.get('ma_alignment', 'N/A')} | 多头排列: {is_bullish} | 趋势强度: {trend_data.get('trend_score', 'N/A')}/100")
+                    report_lines.append("")
                 
-                # 价格位置
                 if price_data:
                     bias_status = price_data.get('bias_status', 'N/A')
                     bias_emoji = "✅" if bias_status == "安全" else ("⚠️" if bias_status == "警戒" else "🚨")
-
-                   # 计算 MA200 偏离度（真正反映长期主义的“黄金坑”或“泡沫区”）
-                   long_bias = "N/A"
-                   if ma200_v and curr_p:
-                       long_bias = f"{((curr_p - ma200_v) / ma200_v * 100):.2f}%"
+                    
+                    long_bias = "N/A"
+                    if ma200_v and curr_p:
+                        long_bias = f"{((curr_p - ma200_v) / ma200_v * 100):.2f}%"
                       
                     report_lines.extend([
-                        "| 价格指标 | 数值 | 战略状态 |",
+                        "| 价格指标 | 数值 | 状态/偏离 |",
                         "|---------|------|---------|",
                         f"| 当前价 | **{curr_p}** | {price_data.get('bias_ma5', 'N/A')}% (MA5乖离) |",
-                        f"| MA50 (季线) | {ma50_v} | {'🟢支撑' if curr_p > ma50_v else '🔴压力'} |",
+                        f"| MA50 (季线) | {ma50_v} | {'🟢支撑' if curr_p > ma50_v else '🔴下方'} |",
                         f"| **MA200 (牛熊线)** | **{ma200_v}** | **{'🚀牛市区间' if curr_p > ma200_v else '📉熊市区间'}** |",
                         f"| 长期偏离度 | {long_bias} | MA200 乖离 |",
-                        f"| 乖离状态 | {bias_emoji}{bias_status} | 择时信号 |",
                         f"| 支撑/压力 | {price_data.get('support_level', 'N/A')} / {price_data.get('resistance_level', 'N/A')} | 关键位 |",
                         "",
                     ])
                 
-                # 量能分析
                 if vol_data:
                     report_lines.extend([
                         f"**量能**: 量比 {vol_data.get('volume_ratio', 'N/A')} ({vol_data.get('volume_status', '')}) | 换手率 {vol_data.get('turnover_rate', 'N/A')}%",
@@ -617,7 +600,6 @@ class NotificationService:
                         "",
                     ])
                 
-                # 筹码结构
                 if chip_data:
                     chip_health = chip_data.get('chip_health', 'N/A')
                     chip_emoji = "✅" if chip_health == "健康" else ("⚠️" if chip_health == "一般" else "🚨")
@@ -625,8 +607,6 @@ class NotificationService:
                         f"**筹码**: 获利比例 {chip_data.get('profit_ratio', 'N/A')} | 平均成本 {chip_data.get('avg_cost', 'N/A')} | 集中度 {chip_data.get('concentration', 'N/A')} {chip_emoji}{chip_health}",
                         "",
                     ])
-            
-            # 舆情情报已移至顶部显示
             
             # ========== 作战计划 ==========
             battle = dashboard.get('battle_plan', {}) if dashboard else {}
