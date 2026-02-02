@@ -758,6 +758,22 @@ class GeminiAnalyzer:
         """
         code = context.get('code', 'Unknown')
         config = get_config()
+
+        # === 增加防御性检查 ===
+        if not context:
+            logger.error(f"[{code}] 分析上下文为空")
+            return self._return_error_result(code, "Empty context")
+
+        # 确保 today 字段存在且不为 None
+        today = context.get('today')
+        if today is None:
+            logger.warning(f"[{code}] 缺失历史技术面数据(today)，尝试从 realtime 补齐")
+            today = context.get('realtime', {}) # 备选方案
+        
+        # 确保 name 存在
+        name = context.get('stock_name')
+        if not name:
+            name = STOCK_NAME_MAP.get(code, f"Asset-{code}")
         
         # 请求前增加延时（防止连续请求触发限流）
         request_delay = config.gemini_request_delay
