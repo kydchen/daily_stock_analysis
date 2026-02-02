@@ -64,6 +64,15 @@ class AnalysisResult:
     trend_prediction: str  # 趋势预测：强烈看多/看多/震荡/看空/强烈看空
     operation_advice: str  # 操作建议：买入/加仓/持有/减仓/卖出/观望
     confidence_level: str = "中"  # 置信度：高/中/低
+
+    # --- 🆕 新增字段，接收解析出来的数据 ---
+    ma5: float = 0.0
+    ma10: float = 0.0
+    ma20: float = 0.0
+    ma50: float = 0.0
+    ma200: float = 0.0
+    current_price: float = 0.0
+    bias_ma5: float = 0.0
     
     # ========== 决策仪表盘 (新增) ==========
     dashboard: Optional[Dict[str, Any]] = None  # 完整的决策仪表盘数据
@@ -1098,7 +1107,11 @@ class GeminiAnalyzer:
                 data = json.loads(json_str)
                 
                 # 提取 dashboard 数据
-                dashboard = data.get('dashboard', None)
+                # dashboard = data.get('dashboard', None)
+                dashboard = data.get('dashboard', {}) # 确保是字典
+                # --- 🆕 关键：从 dashboard 中提取 MA 数据 ---
+                data_persp = dashboard.get('data_perspective', {})
+                price_pos = data_persp.get('price_position', {})
                 
                 # 解析所有字段，使用默认值防止缺失
                 return AnalysisResult(
@@ -1109,6 +1122,15 @@ class GeminiAnalyzer:
                     trend_prediction=data.get('trend_prediction', '震荡'),
                     operation_advice=data.get('operation_advice', '持有'),
                     confidence_level=data.get('confidence_level', '中'),
+
+                    ma5=float(price_pos.get('ma5', 0)),
+                    ma10=float(price_pos.get('ma10', 0)),
+                    ma20=float(price_pos.get('ma20', 0)),
+                    ma50=float(price_pos.get('ma50', 0)),
+                    ma200=float(price_pos.get('ma200', 0)),
+                    current_price=float(price_pos.get('current_price', 0)),
+                    bias_ma5=float(price_pos.get('bias_ma5', 0)),
+                    
                     # 决策仪表盘
                     dashboard=dashboard,
                     # 走势分析
