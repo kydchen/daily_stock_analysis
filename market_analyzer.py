@@ -64,6 +64,7 @@ class MarketOverview:
     indices: List[MarketIndex] = field(default_factory=list)  # A股主要指数
     hk_indices: List[MarketIndex] = field(default_factory=list) # 🆕 港股指数
     us_indices: List[MarketIndex] = field(default_factory=list) # 🆕 美股指数
+    macro_indicators: Dict[str, float] = field(default_factory=dict) # 宏观锚点
     up_count: int = 0                   # 上涨家数
     down_count: int = 0                 # 下跌家数
     flat_count: int = 0                 # 平盘家数
@@ -307,6 +308,23 @@ class MarketAnalyzer:
                 
         except Exception as e:
             logger.error(f"[大盘] 获取涨跌统计失败: {e}")
+    
+    def _get_macro_context(self) -> Dict[str, float]:
+        """获取全球宏观定价锚点数据"""
+        macro_data = {}
+        try:
+            # 抓取美元指数 (DXY) - 黄金和BTC的天敌
+            dxy_df = ak.index_us_stock_sina(symbol=".DXY")
+            if not dxy_df.empty:
+                macro_data['DXY'] = float(dxy_df.iloc[0]['close'])
+            
+            # 抓取美国10年期国债收益率 - 科技股定价锚
+            yield_df = ak.index_us_stock_sina(symbol=".TNX") # 10Y Yield
+            if not yield_df.empty:
+                macro_data['US10Y'] = float(yield_df.iloc[0]['close'])
+        except Exception as e:
+            logger.warning(f"[大盘] 宏观数据抓取失败: {e}")
+        return macro_data
     
     def _get_sector_rankings(self, overview: MarketOverview):
         """获取板块涨跌榜"""
@@ -621,6 +639,7 @@ class MarketAnalyzer:
         
         # 1. 获取市场概览
         overview = self.get_market_overview()
+        overview.macro_indicators = self._get_macro_context() # 注入宏观数据
         
         # 2. 搜索市场新闻
         news = self.search_market_news()
