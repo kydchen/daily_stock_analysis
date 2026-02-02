@@ -242,6 +242,11 @@ class GeminiAnalyzer:
 - 行业政策利空
 - 大额解禁
 
+## 🚨 致命弱点优先规则 (Fatal Weakness First)
+1. 在任何分析生成前，必须首先识别一个**足以推论该标的走势彻底反转或失败**的致命因素。
+2. 必须在 `analysis_summary` 的第一句话直接指出该弱点。
+3. 如果当前处于宏观逆风（如 DXY 上涨而你正在分析黄金），必须将其列为第一风险。
+
 ## 输出格式：决策仪表盘 JSON
 
 请严格按照以下 JSON 格式输出，这是一个完整的【决策仪表盘】：
@@ -877,7 +882,18 @@ class GeminiAnalyzer:
 3. **大盘共振**：个股走势需结合纳指 (IXIC) / 标普500 (SPX) 的整体环境。
 """
 
-        # ========== 2. 技术面数据 ==========
+        # ========== 2. 宏观上下文 ==========
+        if 'macro_indicators' in context:
+            m = context['macro_indicators']
+            prompt += f"""
+### 🌍 全球宏观定价环境
+| 指标 | 当前数值 | 影响逻辑 |
+|------|----------|----------|
+| 美元指数(DXY) | {m.get('DXY', 'N/A')} | 走强则压制黄金/BTC |
+| 10年期美债收益率 | {m.get('US10Y', 'N/A')}% | 走高则杀科技股估值 |
+"""
+        
+        # ========== 3. 技术面数据 ==========
         prompt += f"""
 ---
 ## 📈 技术面数据
@@ -916,7 +932,7 @@ class GeminiAnalyzer:
 | 市值 | {self._format_amount(rt.get('total_mv'))} |
 """
 
-        # ========== 3. 筹码分布 (仅 A股) ==========
+        # ========== 4. 筹码分布 (仅 A股) ==========
         # ⚠️ 关键修改：只有 A股 才展示筹码数据，避免误导
         if asset_type == "ASHARE" and 'chip' in context:
             chip = context['chip']
@@ -931,7 +947,7 @@ class GeminiAnalyzer:
 | 筹码状态 | {chip.get('chip_status', '未知')} | |
 """
 
-        # ========== 4. 趋势分析预判 ==========
+        # ========== 5. 趋势分析预判 ==========
         if 'trend_analysis' in context:
             trend = context['trend_analysis']
             bias_warning = "🚨 高危" if trend.get('bias_ma5', 0) > 5 else "✅ 安全"
@@ -945,7 +961,7 @@ class GeminiAnalyzer:
 | 风险因素 | {', '.join(trend.get('risk_factors', ['无']))} |
 """
 
-        # ========== 5. 新闻情报 ==========
+        # ========== 6. 新闻情报 ==========
         prompt += "\n---\n## 📰 舆情情报\n"
         if news_context:
             prompt += f"""
@@ -955,7 +971,7 @@ class GeminiAnalyzer:
         else:
             prompt += "未搜索到近期相关新闻。\n"
 
-        # ========== 6. 分析任务 (动态生成) ==========
+        # ========== 7. 分析任务 (动态生成) ==========
         task_questions = ""
         if asset_type == "ASHARE":
             task_questions = """1. ❓ 是否满足 MA5>MA10>MA20 多头排列？
