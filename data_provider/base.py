@@ -41,12 +41,10 @@ STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 
 @dataclass
 class RealtimeQuote:
     """实时行情数据类"""
+    # 1. 无默认值的参数全部置前
     code: str
     name: str
     price: float
-    # 将 pct_chg 修改为 change_pct，或者两个都写上以增强兼容性
-    change_pct: float  
-    pct_chg: float = 0.0 # 保持兼容
     volume: float
     amount: float
     high: float
@@ -54,7 +52,10 @@ class RealtimeQuote:
     open: float
     last_close: float
     time: str
-    # 增强指标
+    
+    # 2. 有默认值的参数全部置后
+    change_pct: float = 0.0
+    pct_chg: float = 0.0
     volume_ratio: Optional[float] = None
     turnover_rate: Optional[float] = None
     pe_ratio: Optional[float] = None
@@ -62,12 +63,12 @@ class RealtimeQuote:
     total_mv: Optional[float] = None
     circ_mv: Optional[float] = None
     market_note: str = "正常交易"
-    
-    # 增加一个初始化后的钩子，自动同步两个字段
+
     def __post_init__(self):
-        if self.change_pct and not self.pct_chg:
+        """确保不同数据源的涨跌幅字段对齐"""
+        if self.change_pct != 0.0 and self.pct_chg == 0.0:
             self.pct_chg = self.change_pct
-        if self.pct_chg and not self.change_pct:
+        elif self.pct_chg != 0.0 and self.change_pct == 0.0:
             self.change_pct = self.pct_chg
 
 class DataFetchError(Exception):
