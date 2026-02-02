@@ -44,7 +44,9 @@ class RealtimeQuote:
     code: str
     name: str
     price: float
-    pct_chg: float
+    # 将 pct_chg 修改为 change_pct，或者两个都写上以增强兼容性
+    change_pct: float  
+    pct_chg: float = 0.0 # 保持兼容
     volume: float
     amount: float
     high: float
@@ -60,6 +62,13 @@ class RealtimeQuote:
     total_mv: Optional[float] = None
     circ_mv: Optional[float] = None
     market_note: str = "正常交易"
+    
+    # 增加一个初始化后的钩子，自动同步两个字段
+    def __post_init__(self):
+        if self.change_pct and not self.pct_chg:
+            self.pct_chg = self.change_pct
+        if self.pct_chg and not self.change_pct:
+            self.change_pct = self.pct_chg
 
 class DataFetchError(Exception):
     """数据获取异常基类"""
