@@ -17,7 +17,7 @@ YfinanceFetcher - 兜底数据源 (Priority 4)
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Dict, List, Any, Optional
 
 import pandas as pd
 import yfinance as yf
