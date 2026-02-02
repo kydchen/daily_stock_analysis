@@ -735,132 +735,6 @@ class GeminiAnalyzer:
         else:
             return "US_STOCK"   # 美股 (默认)
 
-    # def analyze(
-    #     self, 
-    #     context: Dict[str, Any],
-    #     news_context: Optional[str] = None
-    # ) -> AnalysisResult:
-
-    #     if not context:
-    #         return self._return_error("Unknown", "Empty context")
-    
-    #     code = context.get('code', 'Unknown')
-    #     config = get_config()
-
-    #     # === 增加防御性检查 ===
-    #     realtime = context.get('realtime') or {}
-    #     trend = context.get('trend_analysis') or {}
-    #     if not context:
-    #         logger.error(f"[{code}] 分析上下文为空")
-    #         return self._return_error_result(code, "Empty context")
-
-    #     # 确保 today 字段存在且不为 None
-    #     today = context.get('today') or {}
-    #     if today is None:
-    #         logger.warning(f"[{code}] 缺失历史技术面数据(today)，尝试从 realtime 补齐")
-    #         today = context.get('realtime', {}) # 备选方案
-        
-    #     # 确保 name 存在
-    #     name = context.get('stock_name') or realtime.get('name') or STOCK_NAME_MAP.get(code, f"股票{code}")
-    #     if not name:
-    #         name = STOCK_NAME_MAP.get(code, f"Asset-{code}")
-        
-    #     # 请求前增加延时（防止连续请求触发限流）
-    #     request_delay = config.gemini_request_delay
-    #     if request_delay > 0:
-    #         logger.debug(f"[LLM] 请求前等待 {request_delay:.1f} 秒...")
-    #         time.sleep(request_delay)
-        
-    #     # 优先从上下文获取股票名称（由 main.py 传入）
-    #     name = context.get('stock_name')
-    #     if not name or name.startswith('股票'):
-    #         # 备选：从 realtime 中获取
-    #         if 'realtime' in context and context['realtime'].get('name'):
-    #             name = context['realtime']['name']
-    #         else:
-    #             # 最后从映射表获取
-    #             name = STOCK_NAME_MAP.get(code, f'股票{code}')
-        
-    #     # 如果模型不可用，返回默认结果
-    #     if not self.is_available():
-    #         return AnalysisResult(
-    #             code=code,
-    #             name=name,
-    #             sentiment_score=50,
-    #             trend_prediction='震荡',
-    #             operation_advice='持有',
-    #             confidence_level='低',
-    #             analysis_summary='AI 分析功能未启用（未配置 API Key）',
-    #             risk_warning='请配置 Gemini API Key 后重试',
-    #             success=False,
-    #             error_message='Gemini API Key 未配置',
-    #         )
-        
-    #     try:
-    #         # 格式化输入（包含技术面数据和新闻）
-    #         prompt = self._format_prompt(context, name, news_context)
-            
-    #         # 获取模型名称
-    #         model_name = getattr(self, '_current_model_name', None)
-    #         if not model_name:
-    #             model_name = getattr(self._model, '_model_name', 'unknown')
-    #             if hasattr(self._model, 'model_name'):
-    #                 model_name = self._model.model_name
-            
-    #         logger.info(f"========== AI 分析 {name}({code}) ==========")
-    #         logger.info(f"[LLM配置] 模型: {model_name}")
-    #         logger.info(f"[LLM配置] Prompt 长度: {len(prompt)} 字符")
-    #         logger.info(f"[LLM配置] 是否包含新闻: {'是' if news_context else '否'}")
-            
-    #         # 记录完整 prompt 到日志（INFO级别记录摘要，DEBUG记录完整）
-    #         prompt_preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
-    #         logger.info(f"[LLM Prompt 预览]\n{prompt_preview}")
-    #         logger.debug(f"=== 完整 Prompt ({len(prompt)}字符) ===\n{prompt}\n=== End Prompt ===")
-            
-    #         # 设置生成配置
-    #         generation_config = {
-    #             "temperature": 0.7,
-    #             "max_output_tokens": 8192,
-    #         }
-            
-    #         logger.info(f"[LLM调用] 开始调用 Gemini API (temperature={generation_config['temperature']}, max_tokens={generation_config['max_output_tokens']})...")
-            
-    #         # 使用带重试的 API 调用
-    #         start_time = time.time()
-    #         response_text = self._call_api_with_retry(prompt, generation_config)
-    #         elapsed = time.time() - start_time
-            
-    #         # 记录响应信息
-    #         logger.info(f"[LLM返回] Gemini API 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符")
-            
-    #         # 记录响应预览（INFO级别）和完整响应（DEBUG级别）
-    #         response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
-    #         logger.info(f"[LLM返回 预览]\n{response_preview}")
-    #         logger.debug(f"=== Gemini 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ===")
-            
-    #         # 解析响应
-    #         result = self._parse_response(response_text, code, name)
-    #         result.raw_response = response_text
-    #         result.search_performed = bool(news_context)
-            
-    #         logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
-            
-    #         return result
-            
-    #     except Exception as e:
-    #         logger.error(f"AI 分析 {name}({code}) 失败: {e}")
-    #         return AnalysisResult(
-    #             code=code,
-    #             name=name,
-    #             sentiment_score=50,
-    #             trend_prediction='震荡',
-    #             operation_advice='持有',
-    #             confidence_level='低',
-    #             analysis_summary=f'分析过程出错: {str(e)[:100]}',
-    #             risk_warning='分析失败，请稍后重试或手动分析',
-    #             success=False,
-    #             error_message=str(e),
-    #         )
 
     def analyze(
         self, 
@@ -878,18 +752,19 @@ class GeminiAnalyzer:
         code = context.get('code', 'Unknown')
         config = get_config()
 
-        # 2. 核心防御：强制判空 (防止 realtime/today/trend 为 None 导致的 .get() 崩溃)
-        # 日志提示：'NoneType' object has no attribute 'get' 就是在这里因为没有判空
+        # 2.【核心加固】强制字典化：解决 'NoneType' object has no attribute 'get'
+        # 即使数据源抓取失败导致对应字段为 None，这里也会强制变为空字典，确保后续 .get() 安全
         realtime = context.get('realtime') if context.get('realtime') is not None else {}
         today = context.get('today') if context.get('today') is not None else {}
         trend = context.get('trend_analysis') if context.get('trend_analysis') is not None else {}
 
         # 3. 智能获取股票名称（多级降级，解决日志中 Asset-Unknown 的问题）
+        # 优先级：上下文显式指定 > 实时行情返回 > 映射表 > 默认占位符
         name = (
             context.get('stock_name') or 
             realtime.get('name') or 
             STOCK_NAME_MAP.get(code) or 
-            f"股票{code}"
+            f"Asset-{code}"
         )
 
         # 4. 检查模型可用性
@@ -898,8 +773,8 @@ class GeminiAnalyzer:
                 code=code, name=name, sentiment_score=50, trend_prediction='震荡',
                 operation_advice='持有', confidence_level='低',
                 analysis_summary='AI 分析功能未启用（未配置 API Key）',
-                risk_warning='请配置 Gemini API Key 后重试', success=False,
-                error_message='Gemini API Key 未配置'
+                risk_warning='请配置 AI API Key 后重试', success=False,
+                error_message='AI API Key 未配置'
             )
 
         # 5. 请求前流控延时
@@ -919,7 +794,7 @@ class GeminiAnalyzer:
             prompt = self._format_prompt(safe_context, name, news_context)
             
             # 获取模型信息用于日志
-            model_info = self._current_model_name or "Unknown Model"
+            model_info = self._current_model_name or "Active Model"
             logger.info(f"========== AI 分析 {name}({code}) ==========")
             logger.info(f"[LLM配置] 模型: {model_info} | 新闻: {'是' if news_context else '否'}")
             
