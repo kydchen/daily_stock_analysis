@@ -119,6 +119,40 @@ class YfinanceFetcher(BaseFetcher):
                 raise
             # 包装其他异常
             raise DataFetchError(f"Yahoo Finance 获取 {yf_code} 失败: {e}") from e
+
+    def fetch_realtime_data(self, stock_code: str) -> Dict:
+        """
+        获取实时/盘前/盘后数据，专门用于非开盘时段分析
+        """
+        yf_code = self._convert_stock_code(stock_code)
+        ticker = yf.Ticker(yf_code)
+        
+        try:
+            # 使用 fast_info 获取基础实时价格，避免 info 接口的超长时间延迟
+            fast_info = ticker.fast_info
+            # 使用 info 字典获取盘前和盘后特定字段
+            full_info = ticker.info
+            
+            # 价格逻辑优先级：盘前 > 盘后 > 当前
+            # 这样你在北京时间白天执行时，拿到的是最新的美股盘前变动
+            pre_market_price = full_info.get('preMarketPrice')
+            post_market_price = full_info.get('postMarketPrice')
+            current_price = fast_info.last_price
+            
+            # 计算盘前变动率
+            pre_change_pct = full_info.get('preMarketChangePercent', 0) * 100
+            
+            return {
+                "symbol": stock_code,
+                "current_price": pre_market_price or post_market_price or current_price,
+                "is_pre_market": pre_market_price is not None,
+                "pre_change_pct": pre_change_pct,
+                "volume": fast_info.last_volume,
+                "market_state": full_info.get('marketState', 'UNKNOWN') # 例如 PRE, POST, REGULAR
+            }
+        except Exception as e:
+            logger.error(f"获取 {stock_code} 实时数据失败: {e}")
+            return {}
     
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
