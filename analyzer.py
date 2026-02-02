@@ -934,12 +934,20 @@ class GeminiAnalyzer:
 | 成交量 | {self._format_volume(today.get('volume'))} |
 | 成交额 | {self._format_amount(today.get('amount'))} |
 
+### 🕒 实时观测（北京时间：{context.get('analysis_time', '未知')})
+| 指标 | 实时数值 | 说明 |
+|------|----------|------|
+| **最新价格** | **{context.get('realtime', {}).get('price', 'N/A')}** | 包含盘前/盘后价格 |
+| 市场备注 | {context.get('realtime', {}).get('market_note', '正常交易时段')} | 识别 Pre-market/Post-market |
+
 ### 均线系统
 | 均线 | 数值 | 说明 |
 |------|------|------|
 | MA5 | {today.get('ma5', 'N/A')} | 短期 |
 | MA10 | {today.get('ma10', 'N/A')} | 短期 |
 | MA20 | {today.get('ma20', 'N/A')} | 中期生命线 |
+| MA50 | {trend.get('ma50', 'N/A')} | 中期季度线 |
+| MA200 | {trend.get('ma200', 'N/A')} | 长期牛熊分界线 |
 | 均线形态 | {context.get('ma_status', '未知')} | |
 """
         
