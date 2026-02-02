@@ -380,27 +380,36 @@ class StockTrendAnalyzer:
             risks.append(f"⚠️ {result.trend_status.value}，不宜做多")
         
         # === 乖离率评分（30分）===
+        # 核心理念：严禁追高，但利用极致超卖进行长线分批布局
         bias = result.bias_ma5
         if bias < 0:
             # 价格在 MA5 下方（回调中）
             if bias > -3:
                 score += 30
                 reasons.append(f"✅ 价格略低于MA5({bias:.1f}%)，回踩买点")
-            elif bias > -5:
+            elif bias >= -7:
                 score += 25
                 reasons.append(f"✅ 价格回踩MA5({bias:.1f}%)，观察支撑")
             else:
-                score += 10
-                risks.append(f"⚠️ 乖离率过大({bias:.1f}%)，可能破位")
+                # 极致负乖离 (例如 BTC 暴跌或美股回撤)
+                # 判定：是否处于长线牛市 (MA200上方)
+                if result.current_price > result.ma200 and result.ma200 > 0:
+                    score += 30  # 给予满分：长线牛市的极致缩量回撤是黄金入场点
+                    reasons.append(f"🔥 极致负乖离({bias:.1f}%)且位于MA200长线上方，触发【长期主义】择时买点")
+                else:
+                    score += 5   # 熊市阴跌：即便乖离大，也可能是趋势彻底破坏
+                    risks.append(f"🚨 负乖离极大({bias:.1f}%)且处于长线熊市(MA200下方)，存在继续下杀风险，严禁接飞刀")
         elif bias < 2:
             score += 28
             reasons.append(f"✅ 价格贴近MA5({bias:.1f}%)，介入好时机")
         elif bias < self.BIAS_THRESHOLD:
+            # 这里的 BIAS_THRESHOLD 通常是 5%
             score += 20
-            reasons.append(f"⚡ 价格略高于MA5({bias:.1f}%)，可小仓介入")
+            reasons.append(f"⚡ 价格略高于MA5({bias:.1f}%)，建议分批小仓介入")
         else:
+            # 乖离率 > 5% (严重超买)
             score += 5
-            risks.append(f"❌ 乖离率过高({bias:.1f}%>5%)，严禁追高！")
+            risks.append(f"❌ 乖离率过高({bias:.1f}%>5%)，严重超买，严禁追高！")
         
         # === 量能评分（20分）===
         volume_scores = {
