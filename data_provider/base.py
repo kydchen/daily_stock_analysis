@@ -41,7 +41,7 @@ STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 
 @dataclass
 class RealtimeQuote:
     """实时行情数据类"""
-    # 1. 无默认值的参数全部置前
+    # 1. 必填参数 (无默认值)，必须全部放在最前面
     code: str
     name: str
     price: float
@@ -53,7 +53,7 @@ class RealtimeQuote:
     last_close: float
     time: str
     
-    # 2. 有默认值的参数全部置后
+    # 2. 选填参数 (有默认值)，必须全部放在最后面
     change_pct: float = 0.0
     pct_chg: float = 0.0
     volume_ratio: Optional[float] = None
@@ -63,9 +63,10 @@ class RealtimeQuote:
     total_mv: Optional[float] = None
     circ_mv: Optional[float] = None
     market_note: str = "正常交易"
+    remark: str = ""  # 🆕 修复：unexpected keyword argument 'remark'
 
     def __post_init__(self):
-        """确保不同数据源的涨跌幅字段对齐"""
+        """同步不同数据源的涨跌幅字段"""
         if self.change_pct != 0.0 and self.pct_chg == 0.0:
             self.pct_chg = self.change_pct
         elif self.pct_chg != 0.0 and self.change_pct == 0.0:
