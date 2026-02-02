@@ -1,20 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-===================================
-趋势交易分析器 - 基于用户交易理念
-===================================
-
-交易理念核心原则：
-1. 严进策略 - 不追高，追求每笔交易成功率
-2. 趋势交易 - MA5>MA10>MA20 多头排列，顺势而为
-3. 效率优先 - 关注筹码结构好的股票
-4. 买点偏好 - 在 MA5/MA10 附近回踩买入
-
-技术标准：
-- 多头排列：MA5 > MA10 > MA20
-- 乖离率：(Close - MA5) / MA5 < 5%（不追高）
-- 量能形态：缩量回调优先
-"""
 
 import logging
 from dataclasses import dataclass, field
@@ -71,7 +55,7 @@ class TrendAnalysisResult:
     ma5: float = 0.0
     ma10: float = 0.0
     ma20: float = 0.0
-    ma60: float = 0.0
+    ma50: float = 0.0
     ma200: float = 0.0
     atr: float = 0.0 # 动态乖离率
     current_price: float = 0.0
@@ -107,7 +91,8 @@ class TrendAnalysisResult:
             'ma5': self.ma5,
             'ma10': self.ma10,
             'ma20': self.ma20,
-            'ma60': self.ma60,
+            'ma50': self.ma50,
+            'ma200': self.ma200,
             'current_price': self.current_price,
             'bias_ma5': self.bias_ma5,
             'bias_ma10': self.bias_ma10,
@@ -175,7 +160,7 @@ class StockTrendAnalyzer:
         result.ma5 = float(latest['MA5'])
         result.ma10 = float(latest['MA10'])
         result.ma20 = float(latest['MA20'])
-        result.ma60 = float(latest.get('MA60', 0))
+        result.ma50 = float(latest.get('MA50', 0))
         
         # 1. 趋势判断
         self._analyze_trend(df, result)
@@ -207,11 +192,6 @@ class StockTrendAnalyzer:
         low_cp = (df['low'] - df['close'].shift()).abs()
         df['ATR'] = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1).rolling(window=14).mean()
         return df
-        # if len(df) >= 60:
-        #     df['MA60'] = df['close'].rolling(window=60).mean()
-        # else:
-        #     df['MA60'] = df['MA20']  # 数据不足时使用 MA20 替代
-        # return df
     
     def _analyze_trend(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """
