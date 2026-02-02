@@ -1127,15 +1127,13 @@ class GeminiAnalyzer:
                 return AnalysisResult(
                     code=code,
                     name=name,
-                    # 核心指标
                     sentiment_score=int(data.get('sentiment_score', 50)),
                     trend_prediction=data.get('trend_prediction', '震荡'),
                     operation_advice=data.get('operation_advice', '持有'),
                     confidence_level=data.get('confidence_level', '中'),
-
+                    
                     ma5=self._safe_float(price_pos.get('ma5')),
                     ma10=self._safe_float(price_pos.get('ma10')),
-                    ma20=self._safe_float(price_pos.get('ma20')),
                     ma50=self._safe_float(price_pos.get('ma50')),
                     ma200=self._safe_float(price_pos.get('ma200')),
                     current_price=self._safe_float(price_pos.get('current_price')),
