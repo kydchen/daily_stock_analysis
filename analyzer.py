@@ -876,6 +876,7 @@ class GeminiAnalyzer:
             stock_name = STOCK_NAME_MAP.get(code, f'{asset_type}:{code}')
             
         today = context.get('today', {})
+        trend = context.get('trend_analysis', {})
         
         # ========== 1. 头部与资产专属逻辑 ==========
         prompt = f"# {asset_type} 决策仪表盘分析请求\n\n"
