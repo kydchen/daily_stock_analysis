@@ -314,6 +314,8 @@ class GeminiAnalyzer:
                 "ma5": MA5数值,
                 "ma10": MA10数值,
                 "ma20": MA20数值,
+                "ma50": MA50数值,     // 🟢 新增这2行
+                "ma200": MA200数值,
                 "bias_ma5": 乖离率百分比数值,
                 "bias_status": "安全/警戒/危险",
                 "support_level": 支撑位价格,
