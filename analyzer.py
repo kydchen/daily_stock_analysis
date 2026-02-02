@@ -843,16 +843,24 @@ class GeminiAnalyzer:
         trend = context.get('trend_analysis') or {}
         realtime = context.get('realtime') or {}
         
-        # 优先使用上下文中的股票名称
-        stock_name = context.get('stock_name', name)
-        if not stock_name or stock_name == f'股票{code}':
-            stock_name = STOCK_NAME_MAP.get(code, f'{asset_type}:{code}')
+        # # 优先使用上下文中的股票名称
+        # stock_name = context.get('stock_name', name)
+        # if not stock_name or stock_name == f'股票{code}':
+        #     stock_name = STOCK_NAME_MAP.get(code, f'{asset_type}:{code}')
+        
+        # 获取资产名称（优先级：context > 映射表）
+        stock_name = context.get('stock_name') or name or f"Asset-{code}"
             
         # today = context.get('today', {})
         # trend = context.get('trend_analysis', {})
-        ma200 = trend.get('ma200')
-        current_price = realtime.get('price') or today.get('close')
-        # current_price = context.get('realtime', {}).get('price')
+        
+
+        # 安全获取当前价格（用于后续计算）
+        current_price_raw = realtime.get('price') or today.get('close')
+        try:
+            current_price = float(current_price_raw) if current_price_raw is not None else None
+        except (ValueError, TypeError):
+            current_price = None
         
         # ========== 1. 头部与资产专属逻辑 ==========
         prompt = f"# {asset_type} 决策仪表盘分析请求\n\n"
@@ -885,8 +893,10 @@ class GeminiAnalyzer:
 """
 
         # ========== 2. 宏观上下文 ==========
-        if 'macro_indicators' in context:
-            m = context['macro_indicators']
+        # if 'macro_indicators' in context:
+            # m = context['macro_indicators']
+        macro = context.get('macro_indicators')
+        if isinstance(macro, dict):
             prompt += f"""
 ### 🌍 全球宏观定价环境
 | 指标 | 当前数值 | 影响逻辑 |
@@ -911,11 +921,12 @@ class GeminiAnalyzer:
 | 成交量 | {self._format_volume(today.get('volume'))} |
 | 成交额 | {self._format_amount(today.get('amount'))} |
 
-### 🕒 实时观测（北京时间：{context.get('analysis_time', '未知')})
+
+### 🕒 实时观测 （北京时间：{context.get('analysis_time', '未知')})
 | 指标 | 实时数值 | 说明 |
 |------|----------|------|
-| **最新价格** | **{context.get('realtime', {}).get('price', 'N/A')}** | 包含盘前/盘后价格 |
-| 市场备注 | {context.get('realtime', {}).get('market_note', '正常交易时段')} | 识别 Pre-market/Post-market |
+| **最新价格** | **{realtime.get('price', 'N/A')}** | 包含盘前/盘后价格 |
+| 市场备注 | {realtime.get('market_note', '正常交易时段')} | |
 
 ### 均线系统
 | 均线 | 数值 | 说明 |
@@ -927,36 +938,30 @@ class GeminiAnalyzer:
 | MA200 | {trend.get('ma200', 'N/A')} | 长期牛熊分界线 |
 | 均线形态 | {context.get('ma_status', '未知')} | |
 """
-        if ma200 and current_price:
+        # 长期主义过滤器逻辑加固
+        ma200_raw = trend.get('ma200')
+        if ma200_raw and current_price:
             try:
-                # 计算乖离率和趋势位置
-                dist_to_ma200 = (float(current_price) - float(ma200)) / float(ma200)
-                ma200_status = "🔴 长期走势破位 (MA200下方)" if dist_to_ma200 < 0 else "🟢 长期多头趋势 (MA200上方)"
-                
-                prompt += f"""
-### ⚖️ 长期主义者过滤器 (MA200)
-| 指标 | 数值 | 状态判别 |
-|------|------|----------|
-| MA200 线 | {ma200} | 长期牛熊分界 |
-| 现价偏离度 | {dist_to_ma200:.2%} | {ma200_status} |
-
-**注：你是长期主义者，若价格在 MA200 下方，除非发生极致乖离，否则原则上不建议建立新仓位。**
-"""
+                ma200 = float(ma200_raw)
+                dist_to_ma200 = (current_price - ma200) / ma200
+                status = "🔴 长期走势破位" if dist_to_ma200 < 0 else "🟢 长期多头趋势"
+                prompt += f"\n**⚖️ 长期过滤器**: 现价偏离 MA200 为 {dist_to_ma200:.2%} ({status})。\n"
+            except (ValueError, TypeError): pass
             except: pass
                     
-        # 添加实时行情（如果有）
-        if realtime:
-            # rt = context['realtime']
-            prompt += f"""
-### 实时指标
-| 指标 | 数值 |
-|------|------|
-| 现价 | {rt.get('price', 'N/A')} |
-| 量比 | {rt.get('volume_ratio', 'N/A')} |
-| 换手率 | {rt.get('turnover_rate', 'N/A')}% |
-| 市盈率 | {rt.get('pe_ratio', 'N/A')} |
-| 市值 | {self._format_amount(rt.get('total_mv'))} |
-"""
+#         # 添加实时行情（如果有）
+#         if realtime:
+#             # rt = context['realtime']
+#             prompt += f"""
+# ### 实时指标
+# | 指标 | 数值 |
+# |------|------|
+# | 现价 | {rt.get('price', 'N/A')} |
+# | 量比 | {rt.get('volume_ratio', 'N/A')} |
+# | 换手率 | {rt.get('turnover_rate', 'N/A')}% |
+# | 市盈率 | {rt.get('pe_ratio', 'N/A')} |
+# | 市值 | {self._format_amount(rt.get('total_mv'))} |
+# """
 
         # ========== 4. 筹码分布 (仅 A股) ==========
         # ⚠️ 关键修改：只有 A股 才展示筹码数据，避免误导
