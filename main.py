@@ -621,7 +621,7 @@ class StockAnalysisPipeline:
         
         量比 = 当前成交量 / 过去5日平均成交量
         """
-        if volume_ratio is None:
+        if volume_ratio is None or volume_ratio == 0:
             return "不适用"
             
         try:
