@@ -1067,7 +1067,7 @@ class GeminiAnalyzer:
 
 **注：你是长期主义者，若价格在 MA200 下方，除非发生极致乖离，否则原则上不建议建立新仓位。**
 """
-                except: pass
+            except: pass
                     
         # 添加实时行情（如果有）
         if realtime:
