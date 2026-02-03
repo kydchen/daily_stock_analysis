@@ -490,13 +490,14 @@ class NotificationService:
             data_persp = dashboard.get('data_perspective', {}) if dashboard else {}
             price_data = data_persp.get('price_position', {})
             
-            curr_p = price_data.get('current_price', 0)
-            ma200_v = price_data.get('ma200', 0)
-            ma50_v = price_data.get('ma50', 0)
+            curr_p = price_data.get('current_price', 0) or 0.0
+            ma200_v = price_data.get('ma200', 0) or 0.0
+            ma50_v = price_data.get('ma50', 0) or 0.0
             
             if ma200_v and curr_p:
-                status_icon = "🛡️" if curr_p > ma200_v else "💀"
-                status_text = "战略多头 (运行于 MA200 牛熊线上方)" if curr_p > ma200_v else "战略空头 (运行于 MA200 牛熊线下方)"
+                is_bull = (curr_p or 0) > (ma200_v or 0)
+                status_icon = "🛡️" if is_bull else "💀"
+                status_text = "战略多头 (运行于 MA200 牛熊线上方)" if is_bull else "战略空头 (运行于 MA200 牛熊线下方)"
                 report_lines.append(f"### 🗺️ 战略方位")
                 report_lines.append(f"{status_icon} **{status_text}**")
                 report_lines.append("")
@@ -586,8 +587,8 @@ class NotificationService:
                         "| 价格指标 | 数值 | 状态/偏离 |",
                         "|---------|------|---------|",
                         f"| 当前价 | **{curr_p}** | {price_data.get('bias_ma5', 'N/A')}% (MA5乖离) |",
-                        f"| MA50 (季线) | {ma50_v} | {'🟢支撑' if curr_p > ma50_v else '🔴下方'} |",
-                        f"| **MA200 (牛熊线)** | **{ma200_v}** | **{'🚀牛市区间' if curr_p > ma200_v else '📉熊市区间'}** |",
+                        f"| MA50 (季线) | {ma50_v if ma50_v is not None else 'N/A'} | {'🟢支撑' if (curr_p or 0) > (ma50_v or 0) else '🔴下方'} |",
+                        f"| **MA200 (牛熊线)** | **{ma200_v}** | **{'🚀牛市区间' if (curr_p or 0) > (ma200_v or 0) else '📉熊市区间'}** |",
                         f"| 长期偏离度 | {long_bias} | MA200 乖离 |",
                         f"| 支撑/压力 | {price_data.get('support_level', 'N/A')} / {price_data.get('resistance_level', 'N/A')} | 关键位 |",
                         "",
