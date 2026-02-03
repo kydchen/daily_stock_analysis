@@ -1071,18 +1071,18 @@ class GeminiAnalyzer:
             return f"{amount:.0f} 元"
 
     def _safe_float(self, value, default=0.0):
-    """确保将任何值安全地转换为浮点数"""
-    if value is None:
-        return default
-    try:
-        # 处理可能的字符串百分比或逗号
-        if isinstance(value, str):
-            value = value.replace('%', '').replace(',', '').strip()
-            if value.lower() in ['n/a', 'none', 'null', '']:
-                return default
-        return float(value)
-    except (ValueError, TypeError):
-        return default
+        """确保将任何值安全地转换为浮点数"""
+        if value is None:
+            return default
+        try:
+            # 处理可能的字符串百分比或逗号
+            if isinstance(value, str):
+                value = value.replace('%', '').replace(',', '').strip()
+                if value.lower() in ['n/a', 'none', 'null', '']:
+                    return default
+            return float(value)
+        except (ValueError, TypeError):
+            return default
 
     def _parse_response(
         self, 
