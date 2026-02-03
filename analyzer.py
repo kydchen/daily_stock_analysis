@@ -833,21 +833,7 @@ class GeminiAnalyzer:
                 analysis_summary=f'分析过程出错: {str(e)[:100]}',
                 risk_warning='分析失败，请稍后重试', success=False,
                 error_message=str(e)
-            )
-            
-    def _safe_float(self, value, default=0.0):
-    """确保将任何值安全地转换为浮点数"""
-    if value is None:
-        return default
-    try:
-        # 处理可能的字符串百分比或逗号
-        if isinstance(value, str):
-            value = value.replace('%', '').replace(',', '').strip()
-            if value.lower() in ['n/a', 'none', 'null', '']:
-                return default
-        return float(value)
-    except (ValueError, TypeError):
-        return default
+            )            
     
     def _format_prompt(
         self, 
@@ -1083,7 +1069,21 @@ class GeminiAnalyzer:
             return f"{amount / 1e4:.2f} 万元"
         else:
             return f"{amount:.0f} 元"
-    
+
+    def _safe_float(self, value, default=0.0):
+    """确保将任何值安全地转换为浮点数"""
+    if value is None:
+        return default
+    try:
+        # 处理可能的字符串百分比或逗号
+        if isinstance(value, str):
+            value = value.replace('%', '').replace(',', '').strip()
+            if value.lower() in ['n/a', 'none', 'null', '']:
+                return default
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
     def _parse_response(
         self, 
         response_text: str, 
