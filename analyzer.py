@@ -939,12 +939,12 @@ class GeminiAnalyzer:
 | MA5 | {today.get('ma5', 'N/A')} | 短期 |
 | MA10 | {today.get('ma10', 'N/A')} | 短期 |
 | MA20 | {today.get('ma20', 'N/A')} | 中期月线 |
-| MA50 | {trend.get('ma50', 'N/A')} | 中期季度线 |
-| MA200 | {trend.get('ma200', 'N/A')} | 长期牛熊分界线 |
+| MA50 | {today.get('ma50', 'N/A')} | 中期季度线 |
+| MA200 | {today.get('ma200', 'N/A')} | 长期牛熊分界线 |
 | 均线形态 | {context.get('ma_status', '未知')} | |
 """
         # 长期主义过滤器逻辑加固
-        ma200_raw = trend.get('ma200')
+        ma200_raw = today.get('ma200')
         if ma200_raw and current_price:
             try:
                 ma200 = float(ma200_raw)
